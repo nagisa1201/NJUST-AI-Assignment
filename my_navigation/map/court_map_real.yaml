@@ -1,0 +1,7 @@
+image: court_map_real.png
+resolution: 0.05
+mode: scale
+negate: 0
+origin: [-0.4, -0.1, 0.0]  # 起点坐标,地图宽度为160个像素点即160x0.05=8米
+occupied_thresh: 0.65
+free_thresh: 0.196

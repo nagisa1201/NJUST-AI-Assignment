@@ -1,0 +1,58 @@
+name: Docker镜像信息检查
+
+on:
+  push:
+    branches: [ "git_action","dev2.0","main"]  #推送到[]分支时触发
+    paths:
+      - '**/Dockerfile*'      # 捕获所有以 Dockerfile 开头的文件，包括 Dockerfile 和 .Dockerfile
+      - '**/.dockerfile*'     # 捕获以 .dockerfile 开头的文件
+      - '**/build.bash'       # 捕获所有目录下的 build.bash 文件
+  pull_request:
+    branches: ["git_action","dev2.0","main"]  #pr到[]分支时触发
+    paths:
+      - '**/Dockerfile*'      # 捕获所有以 Dockerfile 开头的文件，包括 Dockerfile 和 .Dockerfile
+      - '**/.dockerfile*'     # 捕获以 .dockerfile 开头的文件
+      - '**/build.bash'       # 捕获所有目录下的 build.bash 文件
+env:
+  # 可设置为 docker.io 或 ghcr.io
+  REGISTRY: docker.io
+  #仓库名
+  REPO_NAME: nagisa1201/njust-ai-assignment
+  # 是否构建arm64架构的镜像
+  BUILD_ARM64: false  # 你可以在这里设置是否构建 arm64
+
+jobs:
+  build-and-push:
+    name: 构建并推送镜像  # 中文 job 名称（显示用）
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Buildx 构建器
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录docker 
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY == 'ghcr.io' && github.actor || secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ env.REGISTRY == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.DOCKER_HUB_PASSWORD }}
+
+      - name: 设置构建的环境变量
+        id: prep
+        run: |
+          if [[ "${{ env.REGISTRY }}" == "docker.io" ]]; then
+            echo "IMAGE_REPO=${{ env.REPO_NAME }}" >> "$GITHUB_ENV"
+          else
+            echo "IMAGE_REPO=${{ env.REGISTRY }}/${{ env.REPO_NAME }}" >> "$GITHUB_ENV"
+          fi
+          echo "BUILD_ARM64=${{ env.BUILD_ARM64 }}" >> "$GITHUB_ENV"  # 设置 BUILD_ARM64 环境变量
+      - name: 执行自定义构建脚本
+        run: bash ./.devcontainer/build.bash --github-action

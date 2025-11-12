@@ -1,0 +1,29 @@
+{
+    "name": "visual-container",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "visual-service",
+    "workspaceFolder": "/home/Nagisa/visual",
+    "shutdownAction": "stopCompose",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "llvm-vs-code-extensions.vscode-clangd",
+                "twxs.cmake",
+                "josetr.cmake-language-support-vscode",
+                "ms-vscode.cmake-tools",
+                "cschlosser.doxdocgen",
+                "augustocdias.tasks-shell-input",
+                "ms-vscode.cpptools",
+                "ms-python.python",
+                "ms-iot.vscode-ros",
+                "njpwerner.autodocstring",
+                "vadimcn.vscode-lldb",
+                "llvm-vs-code-extensions.lldb-dap",
+                "github.vscode-github-actions"
+            ]
+        },
+        "jetbrains": {
+            "extensions": []
+        }
+    }
+}

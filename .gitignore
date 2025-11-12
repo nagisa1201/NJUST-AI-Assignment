@@ -1,0 +1,11 @@
+build/
+.cache 
+cmake-build-debug/
+.idea/
+install/
+devel/
+log/
+*.db3*
+*metadata.yaml*
+.vscode/start_program
+*.pyc
