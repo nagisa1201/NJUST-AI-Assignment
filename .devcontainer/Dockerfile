@@ -22,8 +22,12 @@ USER ${USERNAME}
 #     && colcon build --symlink-install
 RUN pip install filterpy
 USER root
+COPY ./packages/ROS-TCP-Endpoint-ROS2v0.7.0 /home/${USERNAME}/packages/ros_ws/src/ROS-TCP-Endpoint-ROS2v0.7.0
 #安装导航依赖
 RUN apt-get update && apt-get install -y ros-humble-nav2-bringup
+RUN cd /home/$USERNAME/packages/ros_ws \
+     && colcon build --symlink-install
+
 RUN echo "source /opt/ros/humble/setup.bash" >> /home/$USERNAME/.bashrc \
     && echo "export ROS_LOCALHOST_ONLY=1" >> /home/$USERNAME/.bashrc \
     && echo "export ROS_LOCALHOST_ONLY=1" >> /home/$USERNAME/.config/fish/config.fish \
