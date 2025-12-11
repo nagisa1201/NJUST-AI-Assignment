@@ -2,6 +2,7 @@ import math
 import random
 from obstacles import StaticObstacle, DynamicObstacle
 
+
 class Robot:
     """机器人类（无Pygame依赖）"""
     def __init__(self, x, y, radius, navigation_algorithm):
@@ -67,7 +68,7 @@ class Robot:
             self.last_operation = "到达目标！"
 
 class Canvas:
-    """画布管理器（维护所有元素位置，无Pygame依赖）"""
+    """画布管理器（维护所有元素位置,无Pygame依赖）"""
     def __init__(self, width=1200, height=800):
         self.width = width
         self.height = height
@@ -162,15 +163,17 @@ class Canvas:
                         d += 4 * x + 6
         return False
 
-    def generate_random_static_obstacles(self, count=6):
+    def generate_random_static_obstacles(self, SO_count):
         """生成随机静态障碍物（像素级无重叠）"""
         max_retries = 100  # 最大重试次数，避免死循环
-        for _ in range(count):
+        SO_count = random.randint(SO_count[0], SO_count[1])
+        print("生成静态障碍物数量：", SO_count)
+        for _ in range(SO_count):
             retries = 0
             while retries < max_retries:
                 retries += 1
                 # 随机尺寸和位置
-                width = random.randint(30, 100)
+                width = random.randint(3, 50)
                 height = random.randint(30, 100)
                 x = random.randint(width//2 + 10, self.width - width//2 - 10)
                 y = random.randint(height//2 + 10, self.height - height//2 - 10)

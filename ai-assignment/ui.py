@@ -1,5 +1,13 @@
 import pygame
 import math
+import time
+from pyamaze import maze, agent, textLabel, COLOR
+
+map = maze(20, 20)  # 20行20列
+map.CreateMaze(loopPercent=50)  # 默认入口在右下，出口在左上
+map.run()
+
+start_time = time.time()
 
 # 全局样式配置
 COLORS = {
@@ -54,7 +62,7 @@ class UIRenderer:
             self.screen.blit(line_surface, (0, y))
 
         # 绘制网格
-        grid_size = 50
+        grid_size = 10
         for x in range(0, self.width, grid_size):
             pygame.draw.line(self.screen, COLORS["grid"], (x, 0), (x, self.height), 1)
         for y in range(0, self.height, grid_size):
@@ -158,8 +166,9 @@ class UIRenderer:
         # 绘制半透明面板
         self.screen.blit(self.panel_surface, (10, 10))
 
+        elapsed_time = int(time.time() - start_time)
         # 状态信息
-        time_text = self.font_medium.render(f"仿真时间: {self.canvas.simulation_time//10}s", True, COLORS["text_primary"])
+        time_text = self.font_medium.render(f"运行总时间: {elapsed_time}s", True, COLORS["text_primary"])
         collision_text = self.font_medium.render(f"碰撞次数: {self.canvas.robot.collision_count if self.canvas.robot else 0}", True, COLORS["text_primary"])
         
         # 优化状态文本颜色：暂停为红色，到达目标为绿色，运行中为黑色

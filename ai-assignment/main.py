@@ -22,7 +22,8 @@ def main():
     )
 
     # 5. 初始化仿真场景
-    canvas.generate_random_static_obstacles(count=6)
+    SO_count = (30, 50)  # 静态障碍物数量范围
+    canvas.generate_random_static_obstacles(SO_count)
     canvas.generate_random_dynamic_obstacles(dynamic_movement_algo, count=4)
     canvas.init_robot(robot_navigation_algo)
 
