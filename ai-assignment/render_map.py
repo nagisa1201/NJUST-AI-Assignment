@@ -1,12 +1,11 @@
 import pygame
-import pyamaze
+from imports import pyamaze
 from typing import Tuple
 from dataclasses import dataclass
 import random
 import math
 
 # ===Define of MazeMap and Mazemap generation===
-clock = pygame.time.Clock()
 #Define of Mazemap
 @dataclass
 class MazeMapConfig:
@@ -18,6 +17,14 @@ class MazeMapConfig:
     goal_point:Tuple[int,int] = None
     def __post_init__(self):
         self.map_size = (self.cols * self.cell_size ,self.rows * self.cell_size)
+        print(f"Maze Map Size: {self.map_size}")
+    def create_scene(config):
+        # 这里完成所有初始化
+        generator = MazeMapGenerator(config)
+        maze = generator.generate_maze()
+        maze_data = convert_maze_to_pygame(maze, config, cell_size=config.cell_size)
+        renderer = MazeRenderer(maze_data, config)
+        return maze, maze_data, renderer
     
 #Define of Mazemap Generator
 class MazeMapGenerator:
@@ -43,7 +50,7 @@ class MazeRenderer:
         self.mazemap_config = mazemap_config
         width =  self.mazemap_config.cols * self.mazemap_config.cell_size
         height = self.mazemap_config.rows * self.mazemap_config.cell_size
-        if width >1200 or height>1200:
+        if width >1080 or height>1080:
             raise Exception("Maze size too large for display!!!!EXIST NOW")
         pygame.init()
         self.screen = pygame.display.set_mode((width, height))
@@ -57,8 +64,12 @@ class MazeRenderer:
             pygame.draw.line(self.screen, (0, 0, 0), start, end, 2)
         # 画起点终点
         pygame.draw.circle(self.screen, (0, 0, 255), self.maze_data.start_pixel, 8)
-        pygame.draw.circle(self.screen, (255, 0, 0), self.maze_data.goal_pixel, 8)
-        pygame.display.flip()
+        pygame.draw.circle(self.screen, (255, 0, 0), self.maze_data.goal_pixel, 15)
+        font = pygame.font.SysFont(None, 24)
+        start_text = font.render("start", True, (0, 0, 255))
+        goal_text = font.render("goal", True, (255, 0, 0))
+        self.screen.blit(start_text, (self.maze_data.start_pixel[0] - 10, self.maze_data.start_pixel[1] + 20))
+        self.screen.blit(goal_text, (self.maze_data.goal_pixel[0]- 10, self.maze_data.goal_pixel[1] + 25))
 
     def quit(self):
         pygame.quit()
@@ -89,14 +100,8 @@ def convert_maze_to_pygame(maze, mazemap_config, cell_size=40):
     return MazeDataForPygame(walls, start_pixel, goal_pixel)
 
 #== Define of Maze Generation and Rendering Process==
-mazemap_config = MazeMapConfig(start_point=(1,1), goal_point=(8, 8), rows=8, cols=8, cell_size=90, loop_percent=0)
-map_size = mazemap_config.map_size
-print(f"Maze Map Size: {map_size}")
-maze_generator = MazeMapGenerator(mazemap_config)
-maze_data = maze_generator.generate_maze()
-maze_data_for_pygame = convert_maze_to_pygame(maze_data, mazemap_config=mazemap_config, cell_size=mazemap_config.cell_size)
-maze_walls = maze_data_for_pygame.walls
-mazerenderer = MazeRenderer(maze_data_for_pygame,mazemap_config)
+
+
 
 
 
@@ -179,7 +184,7 @@ class DynamicObstacle:
             if random.random() < math.exp(-5*self.speed):
                 self.direction = self.random_direction()
             if random.random() < 0.05:
-                self.speed = self.w * self.speed + (1 - self.w) * random.uniform(*self.fast_speed_range)
+                self.speed = self.w * self.speed + (1 - self.w) * random.uniform(*self.slow_speed_range)
         # 高速障碍物较少改变
         else:   
             if random.random() < math.exp(-5*self.speed):
@@ -210,12 +215,17 @@ class DynamicObstacleRenderer:
         self.map_height = map_height
         pygame.init()
         self.screen = pygame.display.set_mode((map_width, map_height))
-        pygame.display.set_caption("Dynamic Obstacles V0.1")
     def draw(self):
-        self.screen.fill((255, 255, 255))  # 白色背景
-        for obs in self.obstacles:
-            pygame.draw.circle(self.screen, (255, 0, 0), (int(obs.x), int(obs.y)), obs.radius)
-        pygame.display.flip()
+        font = pygame.font.SysFont("Arial", 12)
+        for idx, obs in enumerate(self.obstacles):
+            if obs.type == 'slow':
+                color = (100, 255, 100)
+            else:
+                color = (255, 100, 255)
+            pygame.draw.circle(self.screen, color, (int(obs.x), int(obs.y)), obs.radius)
+            # 绘制编号
+            label = font.render(str(idx), True, (0, 0, 0))
+            self.screen.blit(label, (int(obs.x)-7, int(obs.y)-7))
     def quit(self):
         pygame.quit()
 
@@ -223,8 +233,9 @@ def generate_dynamic_obstacles(
     num_slow, num_fast,
     slow_speed_range,
     fast_speed_range,
-    map_width=700, map_height=700,
-    radius=10
+    map_width, map_height,
+    radius=10,
+    maze_walls=None
 ):
     obstacles = []
     def is_valid_position(x, y, radius, maze_walls):
@@ -247,7 +258,7 @@ def generate_dynamic_obstacles(
         angle = random.uniform(0, 2 * math.pi)
         return (math.cos(angle), math.sin(angle))
     for _ in range(num_slow):
-        for _ in range(20):
+        for _ in range(10):
             x = random.uniform(radius, map_width - radius)
             y = random.uniform(radius, map_height - radius)
             if is_valid_position(x, y, radius, maze_walls):
@@ -256,7 +267,7 @@ def generate_dynamic_obstacles(
         direction = random_direction()
         obstacles.append(DynamicObstacle(x, y, radius, speed, direction, 'slow', slow_speed_range=slow_speed_range, fast_speed_range=fast_speed_range))
     for _ in range(num_fast):
-        for _ in range(20):
+        for _ in range(10):
             x = random.uniform(radius, map_width - radius)
             y = random.uniform(radius, map_height - radius)
             if is_valid_position(x, y, radius, maze_walls):
@@ -277,11 +288,17 @@ class N7carRobot:
         self.direction = direction
         self.goal = False # 是否到达目标点
 
-    def update(self, maze_walls):
+    def update(self):
         # 计算新位置
         self.x += self.direction[0] * self.speed
         self.y += self.direction[1] * self.speed
-
+    def get_N7car_state(self):
+        return {
+            'x': self.x,
+            'y': self.y,
+            'speed': self.speed,
+            'direction': self.direction
+        }
     def draw(self):
         pygame.draw.circle(self.screen, (255, 255, 255), (int(self.x), int(self.y)), self.radius)
 
@@ -291,7 +308,9 @@ class SceneRenderer:
         self.maze_data = maze_data
         self.mazemap_config = mazemap_config
         self.dynamic_obstacles = dynamic_obstacles
-        self.N7car = N7car  # 之后可以添加N7car机器人实例
+        self.maze_renderer = MazeRenderer(maze_data, mazemap_config)
+        self.dynamic_obstacles_render = DynamicObstacleRenderer(dynamic_obstacles, mazemap_config.map_size[0], mazemap_config.map_size[1])
+        self.N7car = N7car
         width = self.mazemap_config.cols * self.mazemap_config.cell_size
         height = self.mazemap_config.rows * self.mazemap_config.cell_size
         if width > 1200 or height > 1200:
@@ -301,67 +320,25 @@ class SceneRenderer:
         pygame.display.set_caption("Maze & Obstacles")
 
     def draw(self):
-        self.screen.fill((255, 255, 255))  # 白色背景
-        # 画墙
-        for wall in self.maze_data.walls:
-            start, end = wall
-            pygame.draw.line(self.screen, (0, 0, 0), start, end, 2)
-        # 画起点终点
-        pygame.draw.circle(self.screen, (0, 0, 255), self.maze_data.start_pixel, 8)
-        pygame.draw.circle(self.screen, (255, 0, 0), self.maze_data.goal_pixel, 8)
-        # 画动态障碍物
-        for obs in self.dynamic_obstacles:
-            color = (255, 0, 0) if obs.type == 'fast' else (0, 128, 255)
-            pygame.draw.circle(self.screen, color, (int(obs.x), int(obs.y)), obs.radius)
+        self.screen.fill((255, 255, 255))
+        self.maze_renderer.draw()
+        self.dynamic_obstacles_render.draw()
         pygame.draw.circle(self.screen, (0, 0, 0), (int(self.N7car.x), int(self.N7car.y)), self.N7car.radius)
-        pygame.display.flip()
+        # 画N7car方向
+        dx = int(self.N7car.x + 25 * self.N7car.direction[0])
+        dy = int(self.N7car.y + 25 * self.N7car.direction[1])
+        pygame.draw.line(self.screen, (0, 200, 0), (int(self.N7car.x), int(self.N7car.y)), (dx, dy), 3)
 
     def quit(self):
         pygame.quit()
-#=== init the dynamic obstacles ===
-dynamic_obstacles = generate_dynamic_obstacles(
-    num_slow=8, num_fast=3, slow_speed_range=(0.1,0.3),fast_speed_range=(1,2),map_width=map_size[0], map_height=map_size[1],radius=10
-)
 
-N7car = N7carRobot(
-    x=maze_data_for_pygame.start_pixel[0],
-    y=maze_data_for_pygame.start_pixel[1],
-    speed=2,
-    direction=(1,0),
-    radius=15
-)
-#=== init the scene ===
-scene_renderer = SceneRenderer(maze_data_for_pygame, mazemap_config, dynamic_obstacles, N7car)
-# 每帧或每次需要时都可以这样获取
-obstacle_states = [
-    {
-        'x': obs.x,
-        'y': obs.y,
-        'speed': obs.speed,
-        'direction': obs.direction
-    }
-    for obs in dynamic_obstacles
-]
-#=== start the render loop ===
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-    # 更新动态障碍物
-    for obs in dynamic_obstacles:
-        obs.update(maze_walls)
-    obstacle_states = [
-    {
-        'x': obs.x,
-        'y': obs.y,
-        'speed': obs.speed,
-        'direction': obs.direction
-    }
-    for obs in dynamic_obstacles
+def get_obstacle_states(dynamic_obstacles):
+    return [
+        {
+            'x': obs.x,
+            'y': obs.y,
+            'speed': obs.speed,
+            'direction': obs.direction
+        }
+        for obs in dynamic_obstacles
     ]
-    print(obstacle_states)
-    clock.tick(30)
-    # 统一渲染
-    scene_renderer.draw()
-scene_renderer.quit()
