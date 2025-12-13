@@ -54,7 +54,6 @@ class MazeRenderer:
             raise Exception("Maze size too large for display!!!!EXIST NOW")
         pygame.init()
         self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Maze V0.1")
 
     def draw(self):
         self.screen.fill((255, 255, 255))  # 白色背景
@@ -223,9 +222,17 @@ class DynamicObstacleRenderer:
             else:
                 color = (255, 100, 255)
             pygame.draw.circle(self.screen, color, (int(obs.x), int(obs.y)), obs.radius)
-            # 绘制编号
-            label = font.render(str(idx), True, (0, 0, 0))
-            self.screen.blit(label, (int(obs.x)-7, int(obs.y)-7))
+            # 画方向箭头
+            dx = int(obs.x + obs.radius * 2 * obs.direction[0])
+            dy = int(obs.y + obs.radius * 2 * obs.direction[1])
+            pygame.draw.line(self.screen, (0, 0, 0), (int(obs.x), int(obs.y)), (dx, dy), 2)
+            # 显示速度大小，保留一位小数
+            speed_text = font.render(f"{obs.speed:.1f}", True, (0, 0, 0))
+            self.screen.blit(speed_text, (int(obs.x) - 10, int(obs.y) - obs.radius - 18))
+            # 显示障碍物编号（oid），靠近圆心
+            oid = getattr(obs, 'oid', idx)
+            id_text = font.render(f"{oid}", True, (0, 0, 0))
+            self.screen.blit(id_text, (int(obs.x) - 8, int(obs.y) - 8))
     def quit(self):
         pygame.quit()
 
@@ -234,7 +241,7 @@ def generate_dynamic_obstacles(
     slow_speed_range,
     fast_speed_range,
     map_width, map_height,
-    radius=10,
+    radius=8,
     maze_walls=None
 ):
     obstacles = []
@@ -280,7 +287,7 @@ def generate_dynamic_obstacles(
 #== Define of the N7car Robot ==
 # N7 represents Nagisa and 7415
 class N7carRobot:
-    def __init__(self, x, y, speed, direction, radius=15):
+    def __init__(self, x, y, speed, direction, radius=10):
         self.x = x
         self.y = y
         self.radius = radius
@@ -288,10 +295,60 @@ class N7carRobot:
         self.direction = direction
         self.goal = False # 是否到达目标点
 
-    def update(self):
+    def update(self, maze_walls=None):
         # 计算新位置
-        self.x += self.direction[0] * self.speed
-        self.y += self.direction[1] * self.speed
+        new_x = self.x + self.direction[0] * self.speed
+        new_y = self.y + self.direction[1] * self.speed
+        collided = False
+        collided_wall = None
+        if maze_walls is not None:
+            for wall in maze_walls:
+                if self.collide_with_wall((new_x, new_y), wall):
+                    collided = True
+                    collided_wall = wall
+                    break
+        if collided:
+            # 反弹/远离墙体
+            away_dir = self.get_away_direction((new_x, new_y), collided_wall)
+            self.direction = away_dir
+            # 推离墙体1像素，防止卡死
+            self.x += away_dir[0]
+            self.y += away_dir[1]
+        else:
+            self.x = new_x
+            self.y = new_y
+
+    def get_away_direction(self, next_pos, wall):
+        (x, y) = next_pos
+        (x1, y1), (x2, y2) = wall
+        if x1 == x2 and y1 == y2:
+            dx = x - x1
+            dy = y - y1
+        else:
+            t = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / ((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            t = max(0, min(1, t))
+            closest_x = x1 + t * (x2 - x1)
+            closest_y = y1 + t * (y2 - y1)
+            dx = x - closest_x
+            dy = y - closest_y
+        norm = math.hypot(dx, dy)
+        if norm == 0:
+            return (1.0, 0.0)
+        else:
+            return (dx / norm, dy / norm)
+
+    def collide_with_wall(self, next_pos, wall):
+        (x, y) = next_pos
+        (x1, y1), (x2, y2) = wall
+        if x1 == x2 and y1 == y2:
+            dist = ((x - x1) ** 2 + (y - y1) ** 2) ** 0.5
+            return dist < self.radius
+        t = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / ((x2 - x1) ** 2 + (y2 - y1) ** 2)
+        t = max(0, min(1, t))
+        closest_x = x1 + t * (x2 - x1)
+        closest_y = y1 + t * (y2 - y1)
+        dist = ((x - closest_x) ** 2 + (y - closest_y) ** 2) ** 0.5
+        return dist < self.radius
     def get_N7car_state(self):
         return {
             'x': self.x,
@@ -317,9 +374,10 @@ class SceneRenderer:
             raise Exception("Maze size too large for display!!!!EXIST NOW")
         pygame.init()
         self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Maze & Obstacles")
+
 
     def draw(self):
+        font = pygame.font.SysFont("Arial", 12)
         self.screen.fill((255, 255, 255))
         self.maze_renderer.draw()
         self.dynamic_obstacles_render.draw()
@@ -328,7 +386,8 @@ class SceneRenderer:
         dx = int(self.N7car.x + 25 * self.N7car.direction[0])
         dy = int(self.N7car.y + 25 * self.N7car.direction[1])
         pygame.draw.line(self.screen, (0, 200, 0), (int(self.N7car.x), int(self.N7car.y)), (dx, dy), 3)
-
+        speed_text = font.render(f"{self.N7car.speed:.1f}", True, (0, 0, 0))
+        self.screen.blit(speed_text, (int(self.N7car.x) - 10, int(self.N7car.y) - self.N7car.radius - 18))
     def quit(self):
         pygame.quit()
 

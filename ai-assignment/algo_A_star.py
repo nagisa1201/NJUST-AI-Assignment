@@ -18,8 +18,8 @@ import heapq
 from typing import Tuple, List
 
 # 首先配置迷宫地图
-mazeconfig = render_map.MazeMapConfig(rows=12, cols=12, cell_size=90, loop_percent=80, start_point=(1,1), goal_point=(8,8))
-maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
+# mazeconfig = render_map.MazeMapConfig(rows=15, cols=15, cell_size=70, loop_percent=10, start_point=(1,1), goal_point=(15,15))
+# maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
 
 
 
@@ -28,26 +28,26 @@ maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
 class PointTF:
     """封装了像素坐标和网格坐标之间转换的静态方法"""
     @staticmethod
-    def pixel_to_grid(x: float, y: float, cell_size: int = mazeconfig.cell_size) -> Tuple[int, int]:
+    def pixel_to_grid(x: float, y: float, mazeconfig) -> Tuple[int, int]:
         """将像素坐标 (x, y) 转换为 1-based 网格 (row, col)"""
         # X 对应 Col, Y 对应 Row
-        col = int(x / cell_size) + 1
-        row = int(y / cell_size) + 1
+        col = int(x / mazeconfig.cell_size) + 1
+        row = int(y / mazeconfig.cell_size) + 1
         # 确保在地图范围内
         return max(1, min(mazeconfig.rows, row)), max(1, min(mazeconfig.cols, col))
 
     @staticmethod
-    def grid_to_pixel_center(r: int, c: int, cell_size: int = mazeconfig.cell_size) -> Tuple[float, float]:
+    def grid_to_pixel_center(r: int, c: int, mazeconfig) -> Tuple[float, float]:
         """将 1-based 网格 (row, col) 转换为像素中心点 (x, y)"""
-        x = (c - 0.5) * cell_size
-        y = (r - 0.5) * cell_size
+        x = (c - 0.5) * mazeconfig.cell_size
+        y = (r - 0.5) * mazeconfig.cell_size
         return x, y
     
 # ===================== A* 算法的实现（静态避障） =====================
 class AStarInit:
-    def __init__(self, maze_data):
-        start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel)
-        goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel)
+    def __init__(self, maze_data, mazeconfig):
+        start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel, mazeconfig)
+        goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel, mazeconfig)
         self.start_grid = start_grid
         self.goal_grid = goal_grid
 
@@ -123,7 +123,9 @@ class AStarStaticPlanner:
                     path.append(temp_node)
                     temp_node = came_from[temp_node]
                 path.append(start_grid)
+                print(path)
                 return path[::-1] # 返回反转后的路径 (从起点到终点)
+                
 
             for neighbor in self.get_neighbors(current_node):
                 # 两个相邻单元格之间的移动成本为 1 (静态网格)
@@ -218,60 +220,39 @@ class AstarTest:
 #============================== 结束 ===================================#
 
 
-# === 配置动态障碍 ===
-# 低速障碍物个数，速度范围，高速障碍物个数，速度范围, 半径大小
-dynamic_obstacles = render_map.generate_dynamic_obstacles(
-    num_slow=20, num_fast=20, slow_speed_range=(0.5,1),fast_speed_range=(1.5,3),
-    map_width=mazeconfig.map_size[0], map_height=mazeconfig.map_size[1],radius=10,
-    maze_walls=maze_data.walls
-)
+# # -------------------- A* 算法初始化 --------------------
+# astar_init = AStarInit(maze_data)
+# planner = AStarStaticPlanner(maze, mazeconfig)
+# path = planner.find_path(astar_init.start_grid, astar_init.goal_grid)
+# # ------------------------------------------------------
 
-# 配置机器人
-Nagisa_robot = render_map.N7carRobot(
-    x=maze_data.start_pixel[0],
-    y=maze_data.start_pixel[1],
-    speed=2,
-    direction=(1,0),
-    radius=15
-)
-
-# 配置环境渲染器
-scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacles, Nagisa_robot)
+# # -------------------- A* 测试对象实例化 --------------------
+# astar_test_module = AstarTest(Nagisa_robot, maze_data, maze, mazeconfig, scene_renderer)
+# astar_test_module.start_planning_and_movement()
+# # ------------------------------------------------------------
 
 
-# -------------------- A* 算法初始化 --------------------
-astar_init = AStarInit(maze_data)
-planner = AStarStaticPlanner(maze, mazeconfig)
-path = planner.find_path(astar_init.start_grid, astar_init.goal_grid)
-# ------------------------------------------------------
+# # -------------------- 主循环和渲染 --------------------
+# clock = pygame.time.Clock()
+# running = True
+# pygame.font.init()
 
-# -------------------- A* 测试对象实例化 --------------------
-astar_test_module = AstarTest(Nagisa_robot, maze_data, maze, mazeconfig, scene_renderer)
-astar_test_module.start_planning_and_movement()
-# ------------------------------------------------------------
+# while running:
+#     for event in pygame.event.get():
+#         if event.type == pygame.QUIT:
+#             running = False
+#     for obs in dynamic_obstacles:
+#         obs.update(maze_data.walls)
 
+#     Nagisa_robot.update() # 保持此调用以处理方向和位置的内部逻辑（虽然这里机器人默认静止）
 
-# -------------------- 主循环和渲染 --------------------
-clock = pygame.time.Clock()
-running = True
-pygame.font.init()
-
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-    for obs in dynamic_obstacles:
-        obs.update(maze_data.walls)
-
-    Nagisa_robot.update() # 保持此调用以处理方向和位置的内部逻辑（虽然这里机器人默认静止）
-
-    # -------------A* 测试，地图绘制和机器人移动------------------
-    astar_test_module.update()
-    scene_renderer.draw()
-    astar_test_module.draw_path() # 绘制路径，可注释掉以查看无路径效果
+#     # -------------A* 测试，地图绘制和机器人移动------------------
+#     astar_test_module.update()
+#     scene_renderer.draw()
+#     astar_test_module.draw_path() # 绘制路径，可注释掉以查看无路径效果
 
 
-    pygame.display.flip()
-    clock.tick(30) # 控制帧率
+#     pygame.display.flip()
+#     clock.tick(30) # 控制帧率
 
-scene_renderer.quit()
+# scene_renderer.quit()
