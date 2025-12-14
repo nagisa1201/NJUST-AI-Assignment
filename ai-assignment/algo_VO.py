@@ -37,6 +37,7 @@ scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacl
 
 # === 进行动态避障 ===
 class VO_Avoidance:
+            
     def __init__(self, robot, obstacles, path_goal, inflate_ratio):
         self.robot = robot
         self.obstacles = obstacles
@@ -45,7 +46,15 @@ class VO_Avoidance:
         self.path_goal = path_goal  # 规划路径点列表
         self.path_idx = 0  # 当前目标路径点索引
         self.last_velocity = np.zeros(2)  # 历史速度惯性
-        
+        self.a_max = 10.0  # 默认最大加速度
+        self.v_max = 5.0   # 默认最大速度
+
+    def set_speed_limit(self, v_max):
+        self.v_max = float(v_max)
+
+    def set_acc_limit(self, a_max):
+        self.a_max = float(a_max)
+
     def is_velocity_in_VO(self, v, VO):
         """
         判断速度 v 是否在 VO 区域内
@@ -101,6 +110,7 @@ class VO_Avoidance:
                 VOs.append(vo)
                 considered_obs.append(obs)
         print(f"N7car坐标: ({robot_state['x']:.1f}, {robot_state['y']:.1f})")
+        collision_flag = False
         if considered_obs:
             print("考虑进VO的动态障碍物坐标:")
             for obs in considered_obs:
@@ -108,46 +118,69 @@ class VO_Avoidance:
                 print(f"  障碍物{getattr(obs, 'oid', '?')}: ({obs.x:.1f}, {obs.y:.1f})，此时距离{min_dist:.1f}")
                 if min_dist < 18 :
                     print("!!! 警告: 障碍物过近，可能发生碰撞 !!!")
+                    collision_flag = True
         else:
             print("视距内无动态障碍物被考虑进VO，当前速度为{}".format(robot_state['speed']))
+        # 新增：如有碰撞，调用回调
+        if collision_flag and hasattr(self, 'collision_callback'):
+            self.collision_callback()
         return VOs
     
-    def select_velocity_outside_VOs(self, v_desired, VOs):
-        vmax = 5.0
-        # 如果没有VO，直接返回目标速度
+    def select_velocity_outside_VOs(self, v_desired, VOs, danger_away_dir=None):
+        vmax = self.v_max
+        last_v = self.last_velocity if hasattr(self, 'last_velocity') else np.zeros(2)
+        # 危险时优先尝试最大加速度远离障碍物（只受加速度和速度限制）
+        if danger_away_dir is not None:
+            v_far = last_v + danger_away_dir * self.a_max
+            v_far_norm = np.linalg.norm(v_far)
+            if v_far_norm > vmax:
+                v_far = v_far / v_far_norm * vmax
+            acc = np.linalg.norm(v_far - last_v)
+            if acc <= self.a_max + 1e-6 and not any(self.is_velocity_in_VO(v_far, vo) for vo in VOs):
+                self.last_velocity = v_far
+                return v_far
+        # 如果没有VO，直接返回目标速度（但要满足加速度和最大速度约束）
         if not VOs or len(VOs) == 0:
-            self.last_velocity = v_desired
-            return v_desired
+            acc = np.linalg.norm(v_desired - last_v)
+            v_norm = np.linalg.norm(v_desired)
+            if acc <= self.a_max + 1e-6 and v_norm <= vmax + 1e-6:
+                self.last_velocity = v_desired
+                return v_desired
+            # 超过加速度/速度限制，按加速度极限方向逼近
+            direction = v_desired - last_v
+            if np.linalg.norm(direction) > 1e-6:
+                v = last_v + direction / np.linalg.norm(direction) * min(self.a_max, np.linalg.norm(direction))
+            else:
+                v = last_v
+            v_norm = np.linalg.norm(v)
+            if v_norm > vmax:
+                v = v / v_norm * vmax
+            self.last_velocity = v
+            return v
         candidates = []
         # 提高分辨率：半径20档，角度72档（每5度）
         for r in np.linspace(0.2, vmax, 20):
             for angle in np.linspace(0, 2 * np.pi, 72, endpoint=False):
                 v = np.array([np.cos(angle), np.sin(angle)]) * r
+                acc = np.linalg.norm(v - last_v)
+                v_norm = np.linalg.norm(v)
+                if acc > self.a_max + 1e-6 or v_norm > vmax + 1e-6:
+                    continue
                 if not any(self.is_velocity_in_VO(v, vo) for vo in VOs):
                     candidates.append(v)
-
-        # 只有在所有速度都不可行时才考虑静止
-        if not candidates and not any(self.is_velocity_in_VO(np.zeros(2), vo) for vo in VOs):
-            candidates.append(np.zeros(2))
         if candidates:
-            # 历史速度惯性权重
             alpha = 0.6  # 目标速度权重
             beta = 0.2   # 目标方向权重
             gamma = 0.9  # 惯性权重
-            last_v = self.last_velocity if hasattr(self, 'last_velocity') else np.zeros(2)
             def score(v):
-                # 与目标速度接近、方向接近、与历史速度夹角小
                 norm_v = np.linalg.norm(v)
                 norm_vd = np.linalg.norm(v_desired)
                 norm_last = np.linalg.norm(last_v)
-                # 目标速度距离
                 dist_score = np.linalg.norm(v - v_desired)
-                # 目标方向夹角
                 if norm_v > 1e-6 and norm_vd > 1e-6:
                     dir_score = np.arccos(np.clip(np.dot(v, v_desired) / (norm_v * norm_vd), -1, 1))
                 else:
                     dir_score = 0
-                # 与历史速度夹角
                 if norm_v > 1e-6 and norm_last > 1e-6:
                     inertia_score = np.arccos(np.clip(np.dot(v, last_v) / (norm_v * norm_last), -1, 1))
                 else:
@@ -156,16 +189,21 @@ class VO_Avoidance:
             best = min(candidates, key=score)
             self.last_velocity = best
             return best
+        # 没有可行速度，强制加速度极限逼近目标速度
+        direction = v_desired - last_v
+        if np.linalg.norm(direction) > 1e-6:
+            v = last_v + direction / np.linalg.norm(direction) * min(self.a_max, np.linalg.norm(direction))
         else:
-            self.last_velocity = np.zeros(2)
-            return np.zeros(2)
+            v = last_v
+        v_norm = np.linalg.norm(v)
+        if v_norm > vmax:
+            v = v / v_norm * vmax
+        self.last_velocity = v
+        return v
     
     def compute_new_velocity(self, target_point, current_position):
         """
-        计算N7car朝向目标点的合理速度，并避开所有VO，集成最小距离约束和紧急制动
-        target_point: (x, y) 目标点像素坐标
-        current_position: (x, y) 当前N7car像素坐标
-        返回: 新速度向量 (vx, vy)
+        计算N7car朝向目标点的合理速度，并避开所有VO，集成最大加速度和最大速度约束，危险时优先远离障碍物
         """
         # 1. 计算目标方向
         direction = np.array(target_point) - np.array(current_position)
@@ -175,13 +213,12 @@ class VO_Avoidance:
         else:
             direction_normalized = np.zeros_like(direction)
 
-        vmax = 5.0
-        v_desired = direction_normalized * vmax
+        v_desired = direction_normalized * self.v_max
 
         # 2. 获取机器人当前状态（dict）
         robot_state = self.robot.get_N7car_state()
 
-        # 3. 检查最小距离约束和紧急制动
+        # 3. 检查最小距离约束，危险时优先远离
         min_dist = None
         nearest_obs = None
         for obs in self.obstacles:
@@ -190,12 +227,11 @@ class VO_Avoidance:
             if min_dist is None or obs_dist < min_dist:
                 min_dist = obs_dist
                 nearest_obs = obs
-        # 优先远离最近障碍物
+        danger_away_dir = None
         if nearest_obs is not None:
             obs_dist = min_dist
             safe_dist = self.robot.radius + nearest_obs.radius + 5
             if obs_dist < safe_dist:
-                # 采样所有可行速度，优先选与障碍物连线夹角>120度的速度
                 robot_pos = np.array([robot_state['x'], robot_state['y']])
                 obs_pos = np.array([nearest_obs.x, nearest_obs.y])
                 away_dir = robot_pos - obs_pos
@@ -203,38 +239,13 @@ class VO_Avoidance:
                     away_dir = away_dir / np.linalg.norm(away_dir)
                 else:
                     away_dir = np.array([1.0, 0.0])
-                # 采样最大速度远离障碍物
-                vmax = 5.0  # 与N7car最大速度一致
-                v_far = away_dir * vmax
-                # 先判断最大速度远离是否可行
-                VOs = self.build_VOs(self.obstacles, robot_state)
-                if not any(self.is_velocity_in_VO(v_far, vo) for vo in VOs):
-                    print(f"[紧急规避] N7car与障碍物{getattr(nearest_obs, 'oid', '?')} 距离{obs_dist:.1f} < 安全距离{safe_dist}，最大速度远离")
-                    return v_far
-                # 若最大速度不可行，再采样夹角>120度的速度
-                candidates = []
-                for r in np.linspace(0.2, vmax, 10):
-                    for angle in np.linspace(0, 2 * np.pi, 36, endpoint=False):
-                        v = np.array([np.cos(angle), np.sin(angle)]) * r
-                        if np.dot(v, away_dir) / (np.linalg.norm(v) * np.linalg.norm(away_dir) + 1e-6) < -0.5:
-                            if not any(self.is_velocity_in_VO(v, vo) for vo in VOs):
-                                candidates.append(v)
-                if candidates:
-                    best = max(candidates, key=lambda v: np.dot(v, away_dir))
-                    print(f"N7car 当前速度{robot_state['speed']:.1f}，与障碍物{getattr(nearest_obs, 'oid', '?')} 距离{obs_dist:.1f} < 安全距离{safe_dist}，当前障碍物速度为{nearest_obs.speed:.1f}，采样远离速度")
-                    print(f"[紧急规避] N7car与障碍物{getattr(nearest_obs, 'oid', '?')} 距离{obs_dist:.1f} < 安全距离{safe_dist}，采样远离")
-                    return best
-                else:
-                    print(f"N7car 当前速度{robot_state['speed']:.1f}，与障碍物{getattr(nearest_obs, 'oid', '?')} 距离{obs_dist:.1f} < 安全距离{safe_dist}，无可行远离速度")
-                    print(f"[紧急制动] N7car与障碍物{getattr(nearest_obs, 'oid', '?')} 距离{obs_dist:.1f} < 安全距离{safe_dist}，无路可逃急停")
-                    return np.zeros(2)
+                danger_away_dir = away_dir
 
-        # 4. 构造所有VO（包括墙体和动态障碍物）
+        # 4. 构造所有VO（包括动态障碍物）
         VOs = self.build_VOs(self.obstacles, robot_state)
 
-        # 5. 搜索可行速度，选取最接近v_desired的
-        v_new = self.select_velocity_outside_VOs(v_desired, VOs)
-
+        # 5. 搜索可行速度，危险时优先最大加速度远离，否则正常采样
+        v_new = self.select_velocity_outside_VOs(v_desired, VOs, danger_away_dir)
         return v_new
     
     def update(self):

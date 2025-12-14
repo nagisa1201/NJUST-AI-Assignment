@@ -70,13 +70,20 @@ current_grid = A.PointTF.pixel_to_grid(N7car.x, N7car.y, mazeconfig)
 path_grid, path_pix = plan_path_and_set_goal(current_grid, goal_grid)
 
 
+collision_count = 0
+def collision_callback():
+    global collision_count
+    collision_count += 1
+
 vo_planner = VO.VO_Avoidance(
     robot=N7car,
     obstacles=dynamic_obstacles,
-    inflate_ratio=2,
+    inflate_ratio=1,
     path_goal=path_pix,
 )
 vo_planner.path_goal = path_pix
+vo_planner.set_acc_limit(5)
+vo_planner.collision_callback = collision_callback
 vo_planner.path_idx = 0
 scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacles, N7car)
 
@@ -89,6 +96,7 @@ print( obstacle_states)
 print( N7car.get_N7car_state())
 
 paused = False
+font = pygame.font.SysFont(None, 48)
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -101,6 +109,9 @@ while running:
     for obs in dynamic_obstacles:
         obs.update(maze_data.walls)
     vo_planner.update()
+    # 绘制碰撞次数
+    collision_text = font.render(f"碰撞次数: {collision_count}", True, (255,0,0))
+    scene_renderer.screen.blit(collision_text, (20, 20))
     N7car.update()
     # 检查是否到达目标点
     if vo_planner.path_idx >= len(vo_planner.path_goal):

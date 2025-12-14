@@ -17,7 +17,7 @@ from typing import Tuple, List, Dict, Union
 # ===================== 配置细化因子 =====================
 # 每个原始粗网格会被等分成 FACTOR x FACTOR 个细网格
 # 例如 FACTOR=3，则地图分辨率提高 3 倍。
-SUBDIVISION_FACTOR = 3 
+SUBDIVISION_FACTOR = 3
 # ======================================================
 
 
