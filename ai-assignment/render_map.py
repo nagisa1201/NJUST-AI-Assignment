@@ -100,10 +100,6 @@ def convert_maze_to_pygame(maze, mazemap_config, cell_size=40):
 
 #== Define of Maze Generation and Rendering Process==
 
-
-
-
-
 #== Define of Dynamic Obstacle ===
 class DynamicObstacle:
     def __init__(self, x, y, radius, speed, direction, obstacle_type, slow_speed_range=(1,3), fast_speed_range=(4,8)):

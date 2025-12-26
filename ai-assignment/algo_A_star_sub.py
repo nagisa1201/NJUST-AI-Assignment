@@ -10,44 +10,37 @@ Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查�
     使用A_star算法进行静态避障的基础算法
 '''
 
-import render_map
-import math 
-import pygame
-import numpy as np
 import heapq
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 # 首先配置迷宫地图
-mazeconfig = render_map.MazeMapConfig(rows=12, cols=12, cell_size=90, loop_percent=80, start_point=(1,1), goal_point=(8,8))
-maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
-
-
-
+# mazeconfig = render_map.MazeMapConfig(rows=12, cols=12, cell_size=90, loop_percent=80, start_point=(1,1), goal_point=(8,8))
+# maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
 
 # ===================== 坐标转换工具类 =====================
 class PointTF:
     """封装了像素坐标和网格坐标之间转换的静态方法"""
     @staticmethod
-    def pixel_to_grid(x: float, y: float, cell_size: int = mazeconfig.cell_size) -> Tuple[int, int]:
+    def pixel_to_grid(x: float, y: float, mazeconfig) -> Tuple[int, int]:
         """将像素坐标 (x, y) 转换为 1-based 网格 (row, col)"""
         # X 对应 Col, Y 对应 Row
-        col = int(x / cell_size) + 1
-        row = int(y / cell_size) + 1
+        col = int(x / mazeconfig.cell_size) + 1
+        row = int(y / mazeconfig.cell_size) + 1
         # 确保在地图范围内
         return max(1, min(mazeconfig.rows, row)), max(1, min(mazeconfig.cols, col))
 
     @staticmethod
-    def grid_to_pixel_center(r: int, c: int, cell_size: int = mazeconfig.cell_size) -> Tuple[float, float]:
+    def grid_to_pixel_center(r: int, c: int, mazeconfig) -> Tuple[float, float]:
         """将 1-based 网格 (row, col) 转换为像素中心点 (x, y)"""
-        x = (c - 0.5) * cell_size
-        y = (r - 0.5) * cell_size
+        x = (c - 0.5) * mazeconfig.cell_size
+        y = (r - 0.5) * mazeconfig.cell_size
         return x, y
     
 # ===================== A* 算法的实现 =====================
 class AStarInit:
-    def __init__(self, maze_data):
-        start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel)
-        goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel)
+    def __init__(self, maze_data,mazeconfig):
+        start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel, mazeconfig)
+        goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel, mazeconfig)
         self.start_grid = start_grid
         self.goal_grid = goal_grid
 
@@ -60,8 +53,8 @@ class AStarStaticPlanner:
             
         # 实例化 PathRefiner,在此调整细化参数
         self.path_refiner = PathRefiner(
-                subdivision_factor=8, 
-                cell_size=self.maze_config.cell_size
+                mazeconfig=self.maze_config,  
+                subdivision_factor=3, 
         )
         
     def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> int:
@@ -162,7 +155,7 @@ class AStarStaticPlanner:
         # 调用内部的 PathRefiner 进行细化
         fine_path_segments = self.path_refiner.subdivide_path(coarse_path)
         
-        return fine_path_segments
+        return fine_path_segments # 返回细化后的路径段列表
     
 # ===================== 路径细化工具类 (仅用于数据转换/渲染) =====================
 class PathRefiner:
@@ -171,11 +164,11 @@ class PathRefiner:
     并将路径中的每个粗网格等分为 N*N 个子网格的中心点。
     这个类仅用于数据转换，不影响 A* 寻路和机器人移动逻辑。
     """
-    def __init__(self, subdivision_factor: int = 3, cell_size: int = mazeconfig.cell_size):
+    def __init__(self, mazeconfig, subdivision_factor: int = 3):
         # 每条边细分的份数 (例如 3x3 子网格)
         self.subdivision_factor = subdivision_factor
         # 原始网格大小
-        self.original_cell_size = cell_size
+        self.original_cell_size = mazeconfig.cell_size
         # 细分后每个子网格的大小
         self.sub_cell_size = self.original_cell_size / self.subdivision_factor
 
@@ -214,180 +207,180 @@ class PathRefiner:
             
             # 将该网格的所有细分点作为一个子列表添加到结果中
             fine_segments.append(segment)
-        return fine_segments
+        return fine_segments # 返回细化后的路径段列表
 
 
 # ===================== A* 测试演示类 (Test Class) =====================
-class AstarTest:
-    """
-    封装了 A* 路径规划、移动逻辑和路径渲染的类。
-    机器人的移动严格按照 A* 粗粒度网格中心点进行。
-    """
-    def __init__(self, robot, maze_data, maze_map, maze_config, scene_renderer):
-        self.robot = robot
-        self.maze_data = maze_data
-        self.scene_renderer = scene_renderer
-        self.maze_config = maze_config
+# class AstarTest:
+#     """
+#     封装了 A* 路径规划、移动逻辑和路径渲染的类。
+#     机器人的移动严格按照 A* 粗粒度网格中心点进行。
+#     """
+#     def __init__(self, robot, maze_data, maze_map, maze_config, scene_renderer):
+#         self.robot = robot
+#         self.maze_data = maze_data
+#         self.scene_renderer = scene_renderer
+#         self.maze_config = maze_config
         
-        # 规划器和路径初始化
-        self.planner = AStarStaticPlanner(maze_map, maze_config)
+#         # 规划器和路径初始化
+#         self.planner = AStarStaticPlanner(maze_map, maze_config)
         
-        self.start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel)
-        self.goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel)
+#         self.start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel)
+#         self.goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel)
         
-        # 粗粒度路径 (网格坐标) - 机器人实际跟踪的路径
-        self.path: List[Tuple[int, int]] = []
-        # 细粒度路径段 (仅用于渲染和数据输出)
-        self.fine_path_segments: List[List[Tuple[float, float]]] = [] 
-        self.is_planning_complete = False
+#         # 粗粒度路径 (网格坐标) - 机器人实际跟踪的路径
+#         self.path: List[Tuple[int, int]] = []
+#         # 细粒度路径段 (仅用于渲染和数据输出)
+#         self.fine_path_segments: List[List[Tuple[float, float]]] = [] 
+#         self.is_planning_complete = False
 
-    def start_planning_and_movement(self):
-        """执行规划、生成细化数据并准备开始移动"""
-        print(f"AstarTest: Planning path from {self.start_grid} to {self.goal_grid}...")
+#     def start_planning_and_movement(self):
+#         """执行规划、生成细化数据并准备开始移动"""
+#         print(f"AstarTest: Planning path from {self.start_grid} to {self.goal_grid}...")
         
-        current_grid = PointTF.pixel_to_grid(self.robot.x, self.robot.y)
+#         current_grid = PointTF.pixel_to_grid(self.robot.x, self.robot.y)
         
         
-        # 1. 调用新的方法获取细化路径 (元组列表的列表)
-        self.fine_path_segments = self.planner.find_and_refine_path(current_grid, self.goal_grid)
+#         # 1. 调用新的方法获取细化路径 (元组列表的列表)
+#         self.fine_path_segments = self.planner.find_and_refine_path(current_grid, self.goal_grid)
 
 
-        if self.fine_path_segments:
-                    print("\n--- 细化后的路径数据 (fine_path_segments) ---")
-                    # 打印前两个网格的细化点作为示例，避免输出过多数据
-                    print(f"网格1的细分点 (共 {len(self.fine_path_segments[0])} 个): {self.fine_path_segments[0]}")
-                    if len(self.fine_path_segments) > 1:
-                        print(f"网格2的细分点 (共 {len(self.fine_path_segments[1])} 个): {self.fine_path_segments[1]}")
-                    if len(self.fine_path_segments) > 2:
-                        print("...")
-                    print(f"总共有 {len(self.fine_path_segments)} 个粗粒度网格的细分数据。")
-                    print("---------------------------------------------------\n")
+#         if self.fine_path_segments:
+#                     print("\n--- 细化后的路径数据 (fine_path_segments) ---")
+#                     # 打印前两个网格的细化点作为示例，避免输出过多数据
+#                     print(f"网格1的细分点 (共 {len(self.fine_path_segments[0])} 个): {self.fine_path_segments[0]}")
+#                     if len(self.fine_path_segments) > 1:
+#                         print(f"网格2的细分点 (共 {len(self.fine_path_segments[1])} 个): {self.fine_path_segments[1]}")
+#                     if len(self.fine_path_segments) > 2:
+#                         print("...")
+#                     print(f"总共有 {len(self.fine_path_segments)} 个粗粒度网格的细分数据。")
+#                     print("---------------------------------------------------\n")
         
-        # 2. 重新调用原始 find_path 方法获取粗粒度路径用于移动
-        # 注意：这里需要重新调用 planner.find_path，因为 find_and_refine_path 只返回细化路径。
-        self.path = self.planner.find_path(current_grid, self.goal_grid)
+#         # 2. 重新调用原始 find_path 方法获取粗粒度路径用于移动
+#         # 注意：这里需要重新调用 planner.find_path，因为 find_and_refine_path 只返回细化路径。
+#         self.path = self.planner.find_path(current_grid, self.goal_grid)
         
-        if self.path:
-            self.path.pop(0) # 移除当前位置 (保持原始逻辑)
-            self.is_planning_complete = True
-            print(f"AstarTest: Path found with {len(self.path)} coarse steps. Fine segments generated ({sum(len(s) for s in self.fine_path_segments)} points).")
-        else:
-            self.is_planning_complete = False
-            print("AstarTest: Error: Could not find a static path.")
+#         if self.path:
+#             self.path.pop(0) # 移除当前位置 (保持原始逻辑)
+#             self.is_planning_complete = True
+#             print(f"AstarTest: Path found with {len(self.path)} coarse steps. Fine segments generated ({sum(len(s) for s in self.fine_path_segments)} points).")
+#         else:
+#             self.is_planning_complete = False
+#             print("AstarTest: Error: Could not find a static path.")
 
-    def update(self):
-        """在主循环中调用此方法来执行路径跟踪和移动 (使用粗粒度路径)"""
-        # --- 原始 update 逻辑：完全恢复为跟踪粗粒度网格中心点 ---
-        if not self.is_planning_complete or not self.path:
-            self.robot.speed = 0
-            self.robot.goal = True
-            self.robot.update()
-            return
+#     def update(self):
+#         """在主循环中调用此方法来执行路径跟踪和移动 (使用粗粒度路径)"""
+#         # --- 原始 update 逻辑：完全恢复为跟踪粗粒度网格中心点 ---
+#         if not self.is_planning_complete or not self.path:
+#             self.robot.speed = 0
+#             self.robot.goal = True
+#             self.robot.update()
+#             return
 
-        # 1. 目标点检查和更新
-        next_grid = self.path[0]
-        target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
-        dist_to_target = math.hypot(self.robot.x - target_x, self.robot.y - target_y)
+#         # 1. 目标点检查和更新
+#         next_grid = self.path[0]
+#         target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
+#         dist_to_target = math.hypot(self.robot.x - target_x, self.robot.y - target_y)
         
-        if dist_to_target < self.robot.radius / 2: # 保持原始的到达阈值
-            self.path.pop(0)
-            if not self.path:
-                self.robot.goal = True
-                self.robot.speed = 0
-                return
-            # 更新下一个目标
-            next_grid = self.path[0]
-            target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
+#         if dist_to_target < self.robot.radius / 2: # 保持原始的到达阈值
+#             self.path.pop(0)
+#             if not self.path:
+#                 self.robot.goal = True
+#                 self.robot.speed = 0
+#                 return
+#             # 更新下一个目标
+#             next_grid = self.path[0]
+#             target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
             
-        # 2. 计算方向和移动
-        dx = target_x - self.robot.x
-        dy = target_y - self.robot.y
-        norm = math.hypot(dx, dy)
+#         # 2. 计算方向和移动
+#         dx = target_x - self.robot.x
+#         dy = target_y - self.robot.y
+#         norm = math.hypot(dx, dy)
         
-        if norm > 0:
-            self.robot.direction = (dx / norm, dy / norm)
-        else:
-            self.robot.direction = (0, 0)
+#         if norm > 0:
+#             self.robot.direction = (dx / norm, dy / norm)
+#         else:
+#             self.robot.direction = (0, 0)
             
-        self.robot.update()
-        # -----------------------------------------------------------------
+#         self.robot.update()
+#         # -----------------------------------------------------------------
 
-    def draw_path(self):
-        """绘制路径，同时描绘细分后的所有点"""
+#     def draw_path(self):
+#         """绘制路径，同时描绘细分后的所有点"""
         
-        # 1. 绘制原始粗粒度路径 (用于连接网格中心点) - 保持原始绘制方式
-        if self.path:
-            # Note: 这里的 self.path 已经 pop 掉了第一个点，所以需要加上机器人当前位置
-            path_pixels = [(self.robot.x, self.robot.y)] + [PointTF.grid_to_pixel_center(*grid) for grid in self.path]
+#         # 1. 绘制原始粗粒度路径 (用于连接网格中心点) - 保持原始绘制方式
+#         if self.path:
+#             # Note: 这里的 self.path 已经 pop 掉了第一个点，所以需要加上机器人当前位置
+#             path_pixels = [(self.robot.x, self.robot.y)] + [PointTF.grid_to_pixel_center(*grid) for grid in self.path]
 
-            for i in range(len(path_pixels) - 1):
-                p1 = path_pixels[i]
-                p2 = path_pixels[i+1]
-                # 原始粗路径用粗线连接
-                pygame.draw.line(self.scene_renderer.screen, (255, 165, 0), p1, p2, 5)
+#             for i in range(len(path_pixels) - 1):
+#                 p1 = path_pixels[i]
+#                 p2 = path_pixels[i+1]
+#                 # 原始粗路径用粗线连接
+#                 pygame.draw.line(self.scene_renderer.screen, (255, 165, 0), p1, p2, 5)
 
-        # 2. 描绘细分后的所有点 (仅用于展示细化数据)
-        if self.fine_path_segments:
-            # 将 segments 展平为单个列表
-            all_fine_points = [point for segment in self.fine_path_segments for point in segment]
+#         # 2. 描绘细分后的所有点 (仅用于展示细化数据)
+#         if self.fine_path_segments:
+#             # 将 segments 展平为单个列表
+#             all_fine_points = [point for segment in self.fine_path_segments for point in segment]
             
-            for x, y in all_fine_points:
-                 # 突出显示细化后的点
-                 pygame.draw.circle(self.scene_renderer.screen, (0, 255, 255), (int(x), int(y)), 2)
+#             for x, y in all_fine_points:
+#                  # 突出显示细化后的点
+#                  pygame.draw.circle(self.scene_renderer.screen, (0, 255, 255), (int(x), int(y)), 2)
                  
-#============================== 结束 ===================================#
+# #============================== 结束 ===================================#
 
 
-# === 配置动态障碍 ===
-# 低速障碍物个数，速度范围，高速障碍物个数，速度范围, 半径大小
-dynamic_obstacles = render_map.generate_dynamic_obstacles(
-    num_slow=20, num_fast=20, slow_speed_range=(0.5,1),fast_speed_range=(1.5,3),
-    map_width=mazeconfig.map_size[0], map_height=mazeconfig.map_size[1],radius=10,
-    maze_walls=maze_data.walls
-)
+# # === 配置动态障碍 ===
+# # 低速障碍物个数，速度范围，高速障碍物个数，速度范围, 半径大小
+# dynamic_obstacles = render_map.generate_dynamic_obstacles(
+#     num_slow=20, num_fast=20, slow_speed_range=(0.5,1),fast_speed_range=(1.5,3),
+#     map_width=mazeconfig.map_size[0], map_height=mazeconfig.map_size[1],radius=10,
+#     maze_walls=maze_data.walls
+# )
 
-# 配置机器人
-Nagisa_robot = render_map.N7carRobot(
-    x=maze_data.start_pixel[0],
-    y=maze_data.start_pixel[1],
-    speed=2,
-    direction=(1,0),
-    radius=15
-)
+# # 配置机器人
+# Nagisa_robot = render_map.N7carRobot(
+#     x=maze_data.start_pixel[0],
+#     y=maze_data.start_pixel[1],
+#     speed=2,
+#     direction=(1,0),
+#     radius=15
+# )
 
-# 配置环境渲染器
-scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacles, Nagisa_robot)
-
-
-# -------------------- A* 测试对象实例化 --------------------
-astar_test_module = AstarTest(Nagisa_robot, maze_data, maze, mazeconfig, scene_renderer)
-astar_test_module.start_planning_and_movement()
-# ------------------------------------------------------------
+# # 配置环境渲染器
+# scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacles, Nagisa_robot)
 
 
-# -------------------- 主循环和渲染 --------------------
-clock = pygame.time.Clock()
-running = True
-pygame.font.init()
+# # -------------------- A* 测试对象实例化 --------------------
+# astar_test_module = AstarTest(Nagisa_robot, maze_data, maze, mazeconfig, scene_renderer)
+# astar_test_module.start_planning_and_movement()
+# # ------------------------------------------------------------
 
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+
+# # -------------------- 主循环和渲染 --------------------
+# clock = pygame.time.Clock()
+# running = True
+# pygame.font.init()
+
+# while running:
+#     for event in pygame.event.get():
+#         if event.type == pygame.QUIT:
+#             running = False
     
-    # 动态障碍物更新
-    for obs in dynamic_obstacles:
-        obs.update(maze_data.walls)
+#     # 动态障碍物更新
+#     for obs in dynamic_obstacles:
+#         obs.update(maze_data.walls)
 
-    # Nagisa_robot.update() 已经在 astar_test_module.update() 中调用
+#     # Nagisa_robot.update() 已经在 astar_test_module.update() 中调用
 
-    # -----------------A* 测试，地图绘制和机器人移动------------------
-    astar_test_module.update()
-    scene_renderer.draw()
-    astar_test_module.draw_path() # 绘制路径和细分点
+#     # -----------------A* 测试，地图绘制和机器人移动------------------
+#     astar_test_module.update()
+#     scene_renderer.draw()
+#     astar_test_module.draw_path() # 绘制路径和细分点
 
 
-    pygame.display.flip()
-    clock.tick(30) # 控制帧率
+#     pygame.display.flip()
+#     clock.tick(30) # 控制帧率
 
-scene_renderer.quit()
+# scene_renderer.quit()
