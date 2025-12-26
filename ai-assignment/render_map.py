@@ -4,6 +4,7 @@ from typing import Tuple
 from dataclasses import dataclass
 import random
 import math
+import tkinter as tk
 
 # ===Define of MazeMap and Mazemap generation===
 #Define of Mazemap
@@ -30,10 +31,13 @@ class MazeMapConfig:
 class MazeMapGenerator:
     def __init__(self, config:MazeMapConfig):
         self.config = config
+
         self.maze = pyamaze.maze(config.rows, config.cols)
     
     def generate_maze(self):
         self.maze.CreateMaze(loopPercent=self.config.loop_percent)
+        if hasattr(self.maze, '_win') and self.maze._win:
+                    self.maze._win.destroy()
         return self.maze
     
 @dataclass
@@ -79,12 +83,12 @@ def convert_maze_to_pygame(maze, mazemap_config, cell_size=40):
     for (r, c), directions in maze.maze_map.items():
         x = (c - 1) * cell_size
         y = (r - 1) * cell_size
-        # 四个角点
+
         tl = (x, y)
         tr = (x + cell_size, y)
         bl = (x, y + cell_size)
         br = (x + cell_size, y + cell_size)
-        # 墙壁
+
         if directions['N'] == 0:
             walls.append((tl, tr))
         if directions['S'] == 0:
@@ -93,7 +97,7 @@ def convert_maze_to_pygame(maze, mazemap_config, cell_size=40):
             walls.append((tl, bl))
         if directions['E'] == 0:
             walls.append((tr, br))
-    # 起点终点，只用 maze.start 和 maze.goal
+    
     start_pixel = ((mazemap_config.start_point[1] - 0.5) * cell_size, (mazemap_config.start_point[0] - 0.5) * cell_size)
     goal_pixel = ((mazemap_config.goal_point[1] - 0.5) * cell_size, (mazemap_config.goal_point[0] - 0.5) * cell_size)
     return MazeDataForPygame(walls, start_pixel, goal_pixel)
@@ -108,7 +112,7 @@ class DynamicObstacle:
         self.radius = radius  # 障碍物大小
         self.speed = speed
         self.direction = direction  # 单位向量 (dx, dy)
-        self.type = obstacle_type  # 'fast' or 'slow'
+        self.type = obstacle_type  
         self.slow_timer = 0  # 衰减计时
         self.slowing = False  # 是否处于减速/恢复过程
         self.slow_start_speed = speed  # 衰减起始速度
@@ -118,7 +122,7 @@ class DynamicObstacle:
         self.w = 0.5 # 惯性系数
 
     def get_away_direction(self, next_pos, wall):
-        # 计算圆心到墙最近点的向量，取反即为远离墙的方向（归一化+随机扰动）
+        # 计算圆心到墙最近点的向量，取反即为远离墙的方向
         (x, y) = next_pos
         (x1, y1), (x2, y2) = wall
         # 线段长度为0
@@ -141,7 +145,7 @@ class DynamicObstacle:
             base_dir = (dx / norm, dy / norm)
         # 加入小扰动，避免卡死
         angle = math.atan2(base_dir[1], base_dir[0])
-        jitter = random.uniform(-math.pi/2, math.pi/2)  # ±90度扰动
+        jitter = random.uniform(-math.pi/2, math.pi/2)  
         new_angle = angle + jitter
         return (math.cos(new_angle), math.sin(new_angle))
     
@@ -158,7 +162,7 @@ class DynamicObstacle:
         # 检测碰撞标志位
         collided = False
 
-        # 墙体碰撞检测（可用线段与圆碰撞算法）
+        # 墙体碰撞检测
         collided_wall = None
         for wall in maze_walls:
             if self.collide_with_wall((new_x, new_y), wall):
@@ -167,7 +171,7 @@ class DynamicObstacle:
                 break
 
         if collided:
-            # 选择远离墙面的随机二维方向，避免主轴横跳
+
             self.direction = self.get_away_direction((new_x, new_y), collided_wall)
             # 不更新位置，停在原地
         else:
@@ -187,7 +191,6 @@ class DynamicObstacle:
             if random.random() < 0.05:
                 self.speed = self.w * self.speed + (1 - self.w) * random.uniform(*self.fast_speed_range)
     def collide_with_wall(self, next_pos, wall):
-        # next_pos: (x, y) 圆心预测位置
         (x, y) = next_pos
         (x1, y1), (x2, y2) = wall
         # 线段长度为0

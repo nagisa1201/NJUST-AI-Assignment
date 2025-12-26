@@ -67,10 +67,10 @@ def plan_path_and_set_goal(start_grid, goal_grid):
     path_grid = planner.find_path(start_grid, goal_grid)
     path_pix = [A.PointTF.grid_to_pixel_center(r, c, mazeconfig) for (r, c) in path_grid]
     path_pix_refined = planner.find_and_refine_path(start_grid, goal_grid)
-    return path_grid, path_pix, path_pix_refined
+    return path_grid, path_pix, path_pix_refined, planner
 
 current_grid = A.PointTF.pixel_to_grid(N7car.x, N7car.y, mazeconfig)
-path_grid, path_pix, path_pix_refined = plan_path_and_set_goal(current_grid, goal_grid)
+path_grid, path_pix, path_pix_refined, current_planner = plan_path_and_set_goal(current_grid, goal_grid)
 
 collision_count = 0
 def collision_callback():
@@ -94,6 +94,29 @@ scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacl
 
 
 # ======= 开始渲染 =======
+def draw_astar_scores(screen, planner, mazeconfig):
+    """在主程序中定义的渲染函数，不需要修改算法文件"""
+    if not planner or not hasattr(planner, 'last_g_scores'):
+        return
+
+    score_font = pygame.font.SysFont('Arial', 12)
+    f_font = pygame.font.SysFont('Arial', 14, bold=True)
+ 
+    for node, g in planner.last_g_scores.items():
+        if g == float('inf'): continue
+        
+        f = planner.last_f_scores.get(node, 0)
+        h = f - g
+        r, c = node
+        
+        cx, cy = A.PointTF.grid_to_pixel_center(r, c, mazeconfig)
+        
+        f_surface = f_font.render(f"F:{int(f)}", True, (150, 0, 0)) # 红色
+        gh_surface = score_font.render(f"g:{int(g)} h:{int(h)}", True, (60, 60, 60)) # 灰色
+        
+        screen.blit(f_surface, (cx - f_surface.get_width()//2, cy - 18))
+        screen.blit(gh_surface, (cx - gh_surface.get_width()//2, cy + 2))
+
 clock = pygame.time.Clock()
 running = True
 pygame.font.init() 
@@ -113,22 +136,22 @@ while running:
                 running = False
     if paused:
         continue
-    # 更新动态障碍物
+
     for obs in dynamic_obstacles:
         obs.update(maze_data.walls)
     vo_planner.update()
-    # 绘制碰撞次数
+
     collision_text = font.render(f"collision times: {collision_count}", True, (255,0,0))
     scene_renderer.screen.blit(collision_text, (20, 20))
     N7car.update()
-    # 检查是否到达目标点
+
     if vo_planner.path_idx >= len(vo_planner.path_goal):
-        # 重新随机目标点并规划路径，起点为N7car当前位置
+
         new_goal = new_goal_point(rows, cols, None)
         goal_grid = new_goal
-        # 获取N7car当前位置（像素转网格）
+        # 获取N7car当前位置
         current_grid = A.PointTF.pixel_to_grid(N7car.x, N7car.y, mazeconfig)
-        path_grid, path_pix, path_pix_refined = plan_path_and_set_goal(current_grid, goal_grid)
+        path_grid, path_pix, path_pix_refined, current_planner = plan_path_and_set_goal(current_grid, goal_grid)
         vo_planner.path_goal = path_pix_refined
         vo_planner.path_idx = 0
         # 更新迷宫终点
@@ -136,11 +159,14 @@ while running:
         maze_data.goal_pixel = A.PointTF.grid_to_pixel_center(*goal_grid, mazeconfig)
     clock.tick(30)
     scene_renderer.draw()
+    if 'current_planner' in locals():
+        draw_astar_scores(scene_renderer.screen, current_planner, mazeconfig)
+
     scene_renderer.screen.blit(collision_text, (20, 20))
     if vo_planner.path_idx < len(vo_planner.path_goal):
         robot_state = N7car.get_N7car_state()
         VOs = vo_planner.build_VOs(vo_planner.obstacles, robot_state)
-        # 速度空间安全区可视化（分辨率更细，圆点更细，半透明）
+
         vo_planner.visualize_velocity_space(scene_renderer.screen, robot_state, VOs, num_angles=20, num_radii=20)
     if hasattr(vo_planner, 'last_target_point'):
         pygame.draw.circle(scene_renderer.screen, (255,0, 0), (int(vo_planner.last_target_point[0]), int(vo_planner.last_target_point[1])), 8)

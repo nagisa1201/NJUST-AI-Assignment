@@ -2,7 +2,7 @@
 Author: Nagisa 2964793117@qq.com
 Date: 2025-12-13 18:37:10
 LastEditors: Nagisa 2964793117@qq.com
-LastEditTime: 2025-12-15 11:58:13
+LastEditTime: 2025-12-26 14:39:06
 FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koroFileHeader/wiki/%E9%5D%A3%E7%BD%AE
 '''
@@ -49,9 +49,10 @@ class AStarStaticPlanner:
         self.maze_map = maze_map.maze_map 
         self.rows = maze_config.rows
         self.cols = maze_config.cols
-        self.maze_config = maze_config # 存储配置，用于初始化细化器
-            
-        # 实例化 PathRefiner,在此调整细化参数
+        self.maze_config = maze_config 
+        self.last_g_scores = {}
+        self.last_f_scores = {}
+
         self.path_refiner = PathRefiner(
                 mazeconfig=self.maze_config,  
                 subdivision_factor=3, 
@@ -81,7 +82,7 @@ class AStarStaticPlanner:
             return []
 
         for direction, (dr, dc) in moves.items():
-            # pyamaze 中，值为 1 表示可通行
+            # pyamaze 中，1 表示可通行
             if current_cell_data.get(direction) == 1:
                 nr, nc = r + dr, c + dc
                 # 检查新位置是否在地图范围内
@@ -100,9 +101,9 @@ class AStarStaticPlanner:
         open_set = []
         heapq.heappush(open_set, (0, start_grid))
 
-        # g_score: 从起点到某点的实际成本
+        # 从起点到某点的实际成本
         g_score = {}
-        # 初始化所有单元格的 g 值为无穷大，避免字典查找错误
+        # 初始化所有单元格的 g 值为无穷大
         for r in range(1, self.rows + 1):
             for c in range(1, self.cols + 1):
                 g_score[(r, c)] = float('inf')
@@ -116,14 +117,13 @@ class AStarStaticPlanner:
             current_f, current_node = heapq.heappop(open_set)
 
             if current_node == goal_grid:
-                # 找到目标，重建路径
                 path = []
                 temp_node = current_node
                 while temp_node != start_grid:
                     path.append(temp_node)
                     temp_node = came_from[temp_node]
                 path.append(start_grid)
-                return path[::-1] # 返回反转后的路径 (从起点到终点)
+                return path[::-1] # 返回反转后的路径
 
             for neighbor in self.get_neighbors(current_node):
                 # 两个相邻单元格之间的移动成本为 1 (静态网格)
@@ -133,10 +133,13 @@ class AStarStaticPlanner:
                     came_from[neighbor] = current_node
                     g_score[neighbor] = tentative_g_score
                     f_score = tentative_g_score + self.heuristic(neighbor, goal_grid)
+
+                    self.last_g_scores[neighbor] = tentative_g_score
+                    self.last_f_scores[neighbor] = f_score
+
                     # 将邻居节点推入优先队列
                     heapq.heappush(open_set, (f_score, neighbor))
-        return [] # 未找到路径
-    
+        return [] 
 
     def find_and_refine_path(self, start_grid: Tuple[int, int], goal_grid: Tuple[int, int]) -> List[List[Tuple[float, float]]]:
         """
@@ -152,12 +155,11 @@ class AStarStaticPlanner:
         if not coarse_path:
             return []
 
-        # 调用内部的 PathRefiner 进行细化
         fine_path_segments = self.path_refiner.subdivide_path(coarse_path)
         
-        return fine_path_segments # 返回细化后的路径段列表
-    
-# ===================== 路径细化工具类 (仅用于数据转换/渲染) =====================
+        return fine_path_segments 
+        
+# ===================== 路径细化工具类  =====================
 class PathRefiner:
     """
     负责将粗粒度的网格路径 (r, c) 转换为细粒度的像素路径 (x, y)，
@@ -165,9 +167,8 @@ class PathRefiner:
     这个类仅用于数据转换，不影响 A* 寻路和机器人移动逻辑。
     """
     def __init__(self, mazeconfig, subdivision_factor: int = 3):
-        # 每条边细分的份数 (例如 3x3 子网格)
+        # 每条边细分的子网格数
         self.subdivision_factor = subdivision_factor
-        # 原始网格大小
         self.original_cell_size = mazeconfig.cell_size
         # 细分后每个子网格的大小
         self.sub_cell_size = self.original_cell_size / self.subdivision_factor
@@ -207,10 +208,10 @@ class PathRefiner:
             
             # 将该网格的所有细分点作为一个子列表添加到结果中
             fine_segments.append(segment)
-        return fine_segments # 返回细化后的路径段列表
+        return fine_segments 
 
 
-# ===================== A* 测试演示类 (Test Class) =====================
+# ===================== A* 测试演示类 =====================
 # class AstarTest:
 #     """
 #     封装了 A* 路径规划、移动逻辑和路径渲染的类。
@@ -247,7 +248,6 @@ class PathRefiner:
 
 #         if self.fine_path_segments:
 #                     print("\n--- 细化后的路径数据 (fine_path_segments) ---")
-#                     # 打印前两个网格的细化点作为示例，避免输出过多数据
 #                     print(f"网格1的细分点 (共 {len(self.fine_path_segments[0])} 个): {self.fine_path_segments[0]}")
 #                     if len(self.fine_path_segments) > 1:
 #                         print(f"网格2的细分点 (共 {len(self.fine_path_segments[1])} 个): {self.fine_path_segments[1]}")
