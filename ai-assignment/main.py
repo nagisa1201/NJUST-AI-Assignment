@@ -3,7 +3,8 @@ import render_map       # 地图渲染模块
 import algo_VO as VO    # VO 动态避障算法
 import algo_A_star_sub as A # A* 静态避障算法
 import pygame           # 主渲染器
-import numpy as np
+import time 
+
 
 # ======= 用户输入参数 =======
 def get_int_input(prompt, minv, maxv):
@@ -17,6 +18,7 @@ def get_int_input(prompt, minv, maxv):
         except Exception:
             print("输入无效，请重新输入！")
 
+v_max_input = get_int_input("请输入N7car最大速度(1-10)，建议为5: ", 1, 10)
 rows = get_int_input("请输入迷宫行数(2-10): ", 2, 10)
 cols = get_int_input("请输入迷宫列数(2-10): ", 2, 10)
 difficulty = get_int_input("请输入迷宫难度(0-10, 10最难): ", 0, 10)
@@ -50,16 +52,16 @@ dynamic_obstacles = render_map.generate_dynamic_obstacles(
 )
 obstacle_states = render_map.get_obstacle_states(dynamic_obstacles)
 # 生成N7car机器人
+# N7 represents Nagisa and 7415
 N7car = render_map.N7carRobot(
     x=maze_data.start_pixel[0],
     y=maze_data.start_pixel[1],
     direction=(1,0),
-    speed=3,
+    speed=3,  # 这里3只是一个占位符，在VO里面立马就被修改了
     radius=10
 )
 # ======= 路径规划 =======
 def plan_path_and_set_goal(start_grid, goal_grid):
-    print(maze_data)
     astar_init = A.AStarInit(maze_data=maze_data, mazeconfig=mazeconfig)
     astar_init.start_grid = start_grid
     astar_init.goal_grid = goal_grid
@@ -72,22 +74,23 @@ def plan_path_and_set_goal(start_grid, goal_grid):
 current_grid = A.PointTF.pixel_to_grid(N7car.x, N7car.y, mazeconfig)
 path_grid, path_pix, path_pix_refined, current_planner = plan_path_and_set_goal(current_grid, goal_grid)
 
+# 统计碰撞次数
 collision_count = 0
 def collision_callback():
     global collision_count
     collision_count += 1
 
+# ======= 初始化VO避障器 =======
 vo_planner = VO.VO_Avoidance(
     robot=N7car,
     obstacles=dynamic_obstacles,
-    v_max=5,
-    inflate_ratio=1.5,
+    v_max=v_max_input,
+    inflate_ratio=1.2,
     path_goal=path_pix_refined,
     vision_range=100,
     maze_data=maze_data,
 )
 
-vo_planner.set_acc_limit(5)
 vo_planner.collision_callback = collision_callback
 vo_planner.path_idx = 0
 scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacles, N7car)
@@ -95,13 +98,11 @@ scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacl
 
 # ======= 开始渲染 =======
 def draw_astar_scores(screen, planner, mazeconfig):
-    """在主程序中定义的渲染函数，不需要修改算法文件"""
+    """渲染函数"""
     if not planner or not hasattr(planner, 'last_g_scores'):
         return
-
     score_font = pygame.font.SysFont('Arial', 12)
     f_font = pygame.font.SysFont('Arial', 14, bold=True)
- 
     for node, g in planner.last_g_scores.items():
         if g == float('inf'): continue
         
@@ -120,12 +121,17 @@ def draw_astar_scores(screen, planner, mazeconfig):
 clock = pygame.time.Clock()
 running = True
 pygame.font.init() 
-print(obstacle_states)
-print(N7car.get_N7car_state())
 
 paused = False
-font = pygame.font.SysFont(None, 48)
+font = pygame.font.SysFont(None, 28)
+running_time = 0.0
+last_time = time.time()
+success_count = 0
+
 while running:
+    current_time = time.time()
+    delta_time = current_time - last_time
+    last_time = current_time
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -135,19 +141,24 @@ while running:
             elif event.key == pygame.K_q:
                 running = False
     if paused:
+        global_clock = time.time()
         continue
 
+    running_time += delta_time
     for obs in dynamic_obstacles:
         obs.update(maze_data.walls)
     vo_planner.update()
-
+   
     collision_text = font.render(f"collision times: {collision_count}", True, (255,0,0))
-    scene_renderer.screen.blit(collision_text, (20, 20))
+    clock_text = font.render(f"running time:{running_time:.1f}", True, (255,0,0))
+    success_count_text = font.render(f"success times:{success_count}", True, (255,0,0))
+
     N7car.update()
 
     if vo_planner.path_idx >= len(vo_planner.path_goal):
 
         new_goal = new_goal_point(rows, cols, None)
+        success_count += 1
         goal_grid = new_goal
         # 获取N7car当前位置
         current_grid = A.PointTF.pixel_to_grid(N7car.x, N7car.y, mazeconfig)
@@ -163,6 +174,8 @@ while running:
         draw_astar_scores(scene_renderer.screen, current_planner, mazeconfig)
 
     scene_renderer.screen.blit(collision_text, (20, 20))
+    scene_renderer.screen.blit(success_count_text, (20, 40))
+    scene_renderer.screen.blit(clock_text, (20, 60))
     if vo_planner.path_idx < len(vo_planner.path_goal):
         robot_state = N7car.get_N7car_state()
         VOs = vo_planner.build_VOs(vo_planner.obstacles, robot_state)

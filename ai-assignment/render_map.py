@@ -18,7 +18,6 @@ class MazeMapConfig:
     goal_point:Tuple[int,int] = None
     def __post_init__(self):
         self.map_size = (self.cols * self.cell_size ,self.rows * self.cell_size)
-        print(f"Maze Map Size: {self.map_size}")
     def create_scene(config):
         # 这里完成所有初始化
         generator = MazeMapGenerator(config)
@@ -106,7 +105,7 @@ def convert_maze_to_pygame(maze, mazemap_config, cell_size=40):
 
 #== Define of Dynamic Obstacle ===
 class DynamicObstacle:
-    def __init__(self, x, y, radius, speed, direction, obstacle_type, slow_speed_range=(1,3), fast_speed_range=(4,8)):
+    def __init__(self, x, y, radius, speed, direction, obstacle_type, oid, slow_speed_range=(1,3), fast_speed_range=(4,8)):
         self.x = x  # 像素坐标
         self.y = y
         self.radius = radius  # 障碍物大小
@@ -119,7 +118,8 @@ class DynamicObstacle:
         self.slow_elapsed = 0  # 已经过的帧数
         self.slow_speed_range = slow_speed_range
         self.fast_speed_range = fast_speed_range
-        self.w = 0.5 # 惯性系数
+        self.oid = oid
+        self.w = 0.8  # 速度平滑系数
 
     def get_away_direction(self, next_pos, wall):
         # 计算圆心到墙最近点的向量，取反即为远离墙的方向
@@ -244,6 +244,7 @@ def generate_dynamic_obstacles(
     maze_walls=None
 ):
     obstacles = []
+    oid_counter = 0  # 新增：障碍物编号
     def is_valid_position(x, y, radius, maze_walls):
     # 检查(x, y)为圆心，半径为radius时，是否与任意墙体重叠
         for wall in maze_walls:
@@ -271,7 +272,8 @@ def generate_dynamic_obstacles(
                 break
         speed = random.uniform(*slow_speed_range)
         direction = random_direction()
-        obstacles.append(DynamicObstacle(x, y, radius, speed, direction, 'slow', slow_speed_range=slow_speed_range, fast_speed_range=fast_speed_range))
+        obstacles.append(DynamicObstacle(x, y, radius, speed, direction, 'slow', oid=oid_counter, slow_speed_range=slow_speed_range, fast_speed_range=fast_speed_range))
+        oid_counter += 1
     for _ in range(num_fast):
         for _ in range(10):
             x = random.uniform(radius, map_width - radius)
@@ -280,7 +282,8 @@ def generate_dynamic_obstacles(
                 break
         speed = random.uniform(*fast_speed_range)
         direction = random_direction()
-        obstacles.append(DynamicObstacle(x, y, radius, speed, direction, 'fast', slow_speed_range=slow_speed_range, fast_speed_range=fast_speed_range))
+        obstacles.append(DynamicObstacle(x, y, radius, speed, direction, 'fast', oid=oid_counter, slow_speed_range=slow_speed_range, fast_speed_range=fast_speed_range))
+        oid_counter += 1
     return obstacles
 
 #== Define of the N7car Robot ==
