@@ -118,6 +118,7 @@ def draw_astar_scores(screen, planner, mazeconfig):
         screen.blit(f_surface, (cx - f_surface.get_width()//2, cy - 18))
         screen.blit(gh_surface, (cx - gh_surface.get_width()//2, cy + 2))
 
+
 clock = pygame.time.Clock()
 running = True
 pygame.font.init() 
