@@ -59,14 +59,13 @@ class MazeRenderer:
         self.screen = pygame.display.set_mode((width, height))
 
     def draw(self):
-        self.screen.fill((255, 255, 255))  # 白色背景
-        # 画墙
+        self.screen.fill((255, 255, 255))  
         for wall in self.maze_data.walls:
             start, end = wall
             pygame.draw.line(self.screen, (0, 0, 0), start, end, 2)
-        # 画起点终点
         pygame.draw.circle(self.screen, (0, 0, 255), self.maze_data.start_pixel, 8)
         pygame.draw.circle(self.screen, (255, 0, 0), self.maze_data.goal_pixel, 15)
+        
         font = pygame.font.SysFont(None, 24)
         start_text = font.render("start", True, (0, 0, 255))
         goal_text = font.render("goal", True, (255, 0, 0))
