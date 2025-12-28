@@ -2,7 +2,7 @@
 Author: Nagisa 2964793117@qq.com
 Date: 2025-12-13 18:37:10
 LastEditors: Nagisa 2964793117@qq.com
-LastEditTime: 2025-12-14 23:01:35
+LastEditTime: 2025-12-28 10:29:59
 FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -17,7 +17,6 @@ import numpy as np
 import heapq
 from typing import Tuple, List
 
-# 首先配置迷宫地图
 mazeconfig = render_map.MazeMapConfig(rows=12, cols=12, cell_size=90, loop_percent=80, start_point=(1,1), goal_point=(8,8))
 maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
 
@@ -58,24 +57,21 @@ class AStarStaticPlanner:
         self.cols = maze_config.cols
 
     def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> int:
-        """启发函数：曼哈顿距离 (Manhattan Distance)"""
+        """启发函数：曼哈顿距离 """
         r1, c1 = a
         r2, c2 = b
-        # 适用于网格路径的优秀启发函数
         return abs(r1 - r2) + abs(c1 - c2)
 
     def get_neighbors(self, current: Tuple[int, int]) -> List[Tuple[int, int]]:
         """获取当前单元格 (r, c) 的可通行邻居"""
         r, c = current
         neighbors = []
-        # 定义可能的移动方向：(dr, dc) 和 pyamaze 的方向标识
         moves = {
             'N': (-1, 0), 
             'S': (1, 0), 
             'E': (0, 1), 
             'W': (0, -1)
         }
-        # 检查当前单元格在 pyamaze 中的连接信息
         current_cell_data = self.maze_map.get(current)
         if not current_cell_data:
             return []
@@ -94,15 +90,12 @@ class AStarStaticPlanner:
         使用 A* 算法寻找路径
         :param start_grid: 起始网格坐标 (r, c)
         :param goal_grid: 目标网格坐标 (r, c)
-        :return: 包含 (r, c) 路径点的列表 (从起点到终点)
+        :return: 包含 (r, c) 路径点的列表
         """
-        # 优先队列: (f_score, node)
         open_set = []
         heapq.heappush(open_set, (0, start_grid))
 
-        # g_score: 从起点到某点的实际成本
         g_score = {}
-        # 初始化所有单元格的 g 值为无穷大，避免字典查找错误
         for r in range(1, self.rows + 1):
             for c in range(1, self.cols + 1):
                 g_score[(r, c)] = float('inf')
@@ -116,26 +109,23 @@ class AStarStaticPlanner:
             current_f, current_node = heapq.heappop(open_set)
 
             if current_node == goal_grid:
-                # 找到目标，重建路径
                 path = []
                 temp_node = current_node
                 while temp_node != start_grid:
                     path.append(temp_node)
                     temp_node = came_from[temp_node]
                 path.append(start_grid)
-                return path[::-1] # 返回反转后的路径 (从起点到终点)
+                return path[::-1] 
 
             for neighbor in self.get_neighbors(current_node):
-                # 两个相邻单元格之间的移动成本为 1 (静态网格)
                 tentative_g_score = g_score[current_node] + 1 
                 if tentative_g_score < g_score[neighbor]:
-                    # 发现了一条更好的路径
                     came_from[neighbor] = current_node
                     g_score[neighbor] = tentative_g_score
                     f_score = tentative_g_score + self.heuristic(neighbor, goal_grid)
-                    # 将邻居节点推入优先队列
+
                     heapq.heappush(open_set, (f_score, neighbor))
-        return [] # 未找到路径
+        return [] 
     
 class AstarTest:
     """
@@ -147,7 +137,6 @@ class AstarTest:
         self.maze_data = maze_data
         self.scene_renderer = scene_renderer
         
-        # 规划器和路径初始化
         self.planner = AStarStaticPlanner(maze_map, maze_config)
         self.start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel)
         self.goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel)
@@ -155,14 +144,14 @@ class AstarTest:
         self.is_planning_complete = False
 
     def start_planning_and_movement(self):
-        """执行规划并准备开始移动"""
+        """执行规划并开始移动"""
         print(f"AstarTest: Planning path from {self.start_grid} to {self.goal_grid}...")
         
         current_grid = PointTF.pixel_to_grid(self.robot.x, self.robot.y)
         self.path = self.planner.find_path(current_grid, self.goal_grid)
         
         if self.path:
-            self.path.pop(0) # 移除当前位置
+            self.path.pop(0) 
             self.is_planning_complete = True
             print(f"AstarTest: Path found with {len(self.path)} steps. Ready to move.")
         else:
@@ -177,7 +166,6 @@ class AstarTest:
             self.robot.update()
             return
 
-        # 1. 目标点检查和更新
         next_grid = self.path[0]
         target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
         dist_to_target = math.hypot(self.robot.x - target_x, self.robot.y - target_y)
@@ -188,11 +176,10 @@ class AstarTest:
                 self.robot.goal = True
                 self.robot.speed = 0
                 return
-            # 更新下一个目标
+            # Get the next target
             next_grid = self.path[0]
             target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
         
-        # 2. 计算方向和移动
         dx = target_x - self.robot.x
         dy = target_y - self.robot.y
         norm = math.hypot(dx, dy)
@@ -219,7 +206,6 @@ class AstarTest:
 
 
 # === 配置动态障碍 ===
-# 低速障碍物个数，速度范围，高速障碍物个数，速度范围, 半径大小
 dynamic_obstacles = render_map.generate_dynamic_obstacles(
     num_slow=20, num_fast=20, slow_speed_range=(0.5,1),fast_speed_range=(1.5,3),
     map_width=mazeconfig.map_size[0], map_height=mazeconfig.map_size[1],radius=10,
@@ -263,15 +249,15 @@ while running:
     for obs in dynamic_obstacles:
         obs.update(maze_data.walls)
 
-    Nagisa_robot.update() # 保持此调用以处理方向和位置的内部逻辑（虽然这里机器人默认静止）
+    Nagisa_robot.update() 
 
-    # -------------A* 测试，地图绘制和机器人移动------------------
+    # -------------A* 测试------------------
     astar_test_module.update()
     scene_renderer.draw()
-    astar_test_module.draw_path() # 绘制路径，可注释掉以查看无路径效果
+    astar_test_module.draw_path() 
 
 
     pygame.display.flip()
-    clock.tick(30) # 控制帧率
+    clock.tick(30) 
 
 scene_renderer.quit()

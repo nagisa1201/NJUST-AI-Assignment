@@ -2,17 +2,16 @@
 Author: Nagisa 2964793117@qq.com
 Date: 2025-12-13 18:37:10
 LastEditors: Nagisa 2964793117@qq.com
-LastEditTime: 2025-12-27 19:47:44
+LastEditTime: 2025-12-28 11:50:22
 FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koroFileHeader/wiki/%E9%5D%A3%E7%BD%AE
 '''
 '''
-    使用A_star算法进行静态避障的基础算法
+    使用改良的动态加权A*算法和细化栅格进行静态避障的基础算法
 '''
 
 import heapq
 from typing import Tuple, List
-
 
 
 # ===================== 坐标转换工具类 =====================
@@ -31,7 +30,7 @@ class PointTF:
         y = (r - 0.5) * mazeconfig.cell_size
         return x, y
     
-# ===================== A* 算法的实现 =====================
+# ===================== 改良A* 算法的实现 =====================
 class AStarInit:
     def __init__(self, maze_data,mazeconfig):
         start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel, mazeconfig)
@@ -40,11 +39,12 @@ class AStarInit:
         self.goal_grid = goal_grid
 
 class AStarStaticPlanner:
-    def __init__(self, maze_map, maze_config):
+    def __init__(self, maze_map, maze_config, weight: float = 1.0):
         self.maze_map = maze_map.maze_map 
         self.rows = maze_config.rows
         self.cols = maze_config.cols
         self.maze_config = maze_config 
+        self.weight = weight
         self.last_g_scores = {}
         self.last_f_scores = {}
 
@@ -57,7 +57,6 @@ class AStarStaticPlanner:
         """启发函数：曼哈顿距离 (Manhattan Distance)"""
         r1, c1 = a
         r2, c2 = b
-        # 适用于网格路径的优秀启发函数
         return abs(r1 - r2) + abs(c1 - c2)
 
     def get_neighbors(self, current: Tuple[int, int]) -> List[Tuple[int, int]]:
@@ -90,6 +89,7 @@ class AStarStaticPlanner:
         :return: 包含 (r, c) 路径点的列表 (从起点到终点)
         """
         open_set = []
+        h_initial = self.heuristic(start_grid, goal_grid)
         heapq.heappush(open_set, (0, start_grid))
 
         g_score = {}
@@ -100,7 +100,7 @@ class AStarStaticPlanner:
         
         g_score[start_grid] = 0
         came_from = {}
-        
+        epsilon = self.weight - 1.0
         while open_set:
             current_f, current_node = heapq.heappop(open_set)
 
@@ -118,7 +118,10 @@ class AStarStaticPlanner:
                 if tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current_node
                     g_score[neighbor] = tentative_g_score
-                    f_score = tentative_g_score + self.heuristic(neighbor, goal_grid)
+                    h_neighbor = self.heuristic(neighbor, goal_grid)
+                    # 计算动态权重
+                    w_neighbor = 1.0 + epsilon * (h_neighbor / h_initial) if h_initial > 0 else 1.0
+                    f_score = tentative_g_score + w_neighbor * h_neighbor
 
                     self.last_g_scores[neighbor] = tentative_g_score
                     self.last_f_scores[neighbor] = f_score

@@ -1,7 +1,7 @@
 # 地图生成 动态障碍生成 机器人生成 场景渲染
 import render_map       # 地图渲染模块
 import algo_VO as VO    # VO 动态避障算法
-import algo_A_star_sub as A # A* 静态避障算法
+import algo_improved_A_star as A # A* 改良算法
 import pygame           # 主渲染器
 import time 
 
