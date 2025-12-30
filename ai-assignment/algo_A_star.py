@@ -2,7 +2,7 @@
 Author: Nagisa 2964793117@qq.com
 Date: 2025-12-13 18:37:10
 LastEditors: Nagisa 2964793117@qq.com
-LastEditTime: 2025-12-28 10:29:59
+LastEditTime: 2025-12-30 19:49:15
 FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -101,7 +101,6 @@ class AStarStaticPlanner:
                 g_score[(r, c)] = float('inf')
         
         g_score[start_grid] = 0
-        # came_from: 记录最短路径回溯
         came_from = {}
         
         while open_set:
@@ -129,8 +128,7 @@ class AStarStaticPlanner:
     
 class AstarTest:
     """
-    封装了 A* 路径规划、移动逻辑和路径渲染的类。
-    可以在需要时调用其方法来启动和控制机器人移动。
+    封装了 A* 路径规划、移动逻辑和路径渲染的类
     """
     def __init__(self, robot, maze_data, maze_map, maze_config, scene_renderer):
         self.robot = robot

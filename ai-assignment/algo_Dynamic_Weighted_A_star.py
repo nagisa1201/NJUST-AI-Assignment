@@ -1,6 +1,6 @@
 '''
 Author: Nagisa 2964793117@qq.com
-Description: DWA* 性能分析对齐增强版（修复参数传递错误，确保图表全可见）
+Description: DWA* 性能分析
 '''
 
 import heapq
@@ -145,12 +145,10 @@ class AstarTest:
                     self.planner.find_path(self.start_grid, self.goal_grid, record=True)
                     history = self.planner.weight_history
                     if history:
-                        # 添加横轴百分比计算
                         progress = [i / (len(history)-1) * 100 for i in range(len(history))]
                         ax_f2.plot(progress, history, label=f'w_start={w_val}', linewidth=1.5)
             
         ax_f2.set_title("Figure 2: Weight Decay Process", fontsize=10, fontweight='bold')
-        # 添加横纵坐标说明
         ax_f2.set_xlabel("Search Progress (%)", fontsize=9)
         ax_f2.set_ylabel("Dynamic Weight $w(n)$", fontsize=9)
         ax_f2.grid(True, linestyle=':', alpha=0.6)

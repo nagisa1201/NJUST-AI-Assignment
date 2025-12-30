@@ -2,12 +2,12 @@
 Author: Nagisa 2964793117@qq.com
 Date: 2025-12-13 18:37:10
 LastEditors: Nagisa 2964793117@qq.com
-LastEditTime: 2025-12-28 11:50:22
+LastEditTime: 2025-12-30 19:51:15
 FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koroFileHeader/wiki/%E9%5D%A3%E7%BD%AE
 '''
 '''
-    使用改良的动态加权A*算法和细化栅格进行静态避障的基础算法
+    最终改良版的A*算法，即细化栅格DWA*算法
 '''
 
 import heapq
@@ -83,10 +83,7 @@ class AStarStaticPlanner:
 
     def find_path(self, start_grid: Tuple[int, int], goal_grid: Tuple[int, int]) -> List[Tuple[int, int]]:
         """
-         A* 算法寻找路径
-        :param start_grid: 起始网格坐标 (r, c)
-        :param goal_grid: 目标网格坐标 (r, c)
-        :return: 包含 (r, c) 路径点的列表 (从起点到终点)
+         DWA* 算法寻找路径
         """
         open_set = []
         h_initial = self.heuristic(start_grid, goal_grid)
@@ -130,11 +127,7 @@ class AStarStaticPlanner:
 
     def find_and_refine_path(self, start_grid: Tuple[int, int], goal_grid: Tuple[int, int]) -> List[List[Tuple[float, float]]]:
         """
-        首先使用 A* 寻找粗粒度路径，然后将其细化为元组列表的列表。
-        
-        :param start_grid: 起始网格坐标 (r, c)
-        :param goal_grid: 目标网格坐标 (r, c)
-        :return: 细化后的路径段列表: List[List[Tuple[float, float]]]
+        首先使用 DWA* 寻找粗粒度路径，然后将其细化为元组列表的列表。
         """
         coarse_path = self.find_path(start_grid, goal_grid)
         
