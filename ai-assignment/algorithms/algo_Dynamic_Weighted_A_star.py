@@ -8,9 +8,12 @@ import math
 import matplotlib.pyplot as plt
 from typing import Tuple, List, Dict
 import pygame
-import render_map
+import sys
+import os
 import numpy as np
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import render.render_map as render_map
 # ===================== 坐标转换工具类 =====================
 class PointTF:
     @staticmethod

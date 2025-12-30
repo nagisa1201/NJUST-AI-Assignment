@@ -2,25 +2,25 @@
 Author: Nagisa 2964793117@qq.com
 Date: 2025-12-13 18:37:10
 LastEditors: Nagisa 2964793117@qq.com
-LastEditTime: 2025-12-30 19:49:15
+LastEditTime: 2025-12-30 23:48:38
 FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
 '''
     使用A_star算法进行静态避障的基础算法
 '''
-
-import render_map
+import sys
+import os
 import math 
 import pygame
 import numpy as np
 import heapq
 from typing import Tuple, List
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import render.render_map as render_map
 
 mazeconfig = render_map.MazeMapConfig(rows=12, cols=12, cell_size=90, loop_percent=80, start_point=(1,1), goal_point=(8,8))
 maze, maze_data, renderer = render_map.MazeMapConfig.create_scene(mazeconfig)
-
-
 
 
 # ===================== 坐标转换工具类 =====================

@@ -8,9 +8,12 @@ import math
 import matplotlib.pyplot as plt
 from typing import Tuple, List, Dict
 import pygame
-import render_map
 import matplotlib.ticker as ticker
+import sys
+import os
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import render.render_map as render_map
 # ===================== 坐标转换工具类 =====================
 class PointTF:
     @staticmethod
@@ -130,7 +133,7 @@ class AstarTest:
         self.is_planning_complete = False
 
     def plot_sweep_results(self, sweep_data: List[Dict]):
-        """ A* 参数扫描分析图 - 美化版 """
+        """ A* 参数扫描分析图 """
         # 设置全局风格
         plt.style.use('seaborn-v0_8-muted') 
         weights = [d['weight'] for d in sweep_data]
@@ -255,7 +258,7 @@ class AstarTest:
         if self.fine_path_segments:
             for segment in self.fine_path_segments:
                 for x, y in segment:
-                    pygame.draw.circle(self.scene_renderer.screen, (0, 255, 255), (int(x), int(y)), 2)
+                    pygame.draw.circle(self.scene_renderer.screen, (255, 0, 0), (int(x), int(y)), 2)
 
 # ===================== 主程序运行 =====================
 if __name__ == "__main__":
