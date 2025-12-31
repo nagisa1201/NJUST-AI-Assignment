@@ -1,52 +1,71 @@
-# NJUST-AI-Assignment
-**嘻嘻我草拟吗的自动化**
+<!--
+ * @Author: Nagisa 2964793117@qq.com
+ * @Date: 2025-12-10 21:44:24
+ * @LastEditors: Nagisa 2964793117@qq.com
+ * @LastEditTime: 2025-12-31 00:37:39
+ * @FilePath: \NJUST-AI-Assignment\README.md
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+-->
+# [NJUST-AI-Assignment(含本github项目超链接)](https://github.com/nagisa1201/NJUST-AI-Assignment)：田麟飞与万鹏的人工智能大作业Readme
 
-## 任务定义
+## 题目回顾：
+![exam](./readme_picture/image.png)
 
-* 生成一个（多少*多少）的地图
-* 地图里面随机生成(X~Y)个障碍物，每个障碍物的大小规则or不规则，为(A-B)个像素大小。
-* 初始化(C-D)个傻逼行人，以(E-F)/pix的速度随机移动，方向每隔 高斯分布秒 发生 高斯分布角度的 转向，转向过程进行平滑处理。
+## 工程环境介绍
+- 本工程基于**Anaconda环境**下的**Python3.11.13**，采用了**Pygame库**进行了类似迷宫游戏的仿真平台搭建，此外还使用了Python的常见heapq、numpy等常见库。
 
-在以上的状态下，随机选取两个像素分别为 **阳阳车的** **初始点**和**终止点**。其中终止点划定一个(多少*多少)的**圆形区域为终点区**
+## 项目工程文件目录介绍
+- 本工程文件较多，现分文件夹进行文件功能介绍。
+### ai-assignment
+#### imports
+- 本文件夹下存放pyamaze的**pygame的maze迷宫类文件**，存放于该文件夹的目的是为了在后续算法模块、主模块、地图渲染模块**引用该迷宫类**。
+#### algorithms
+- 为本工程的**算法规划层** ，是工程中最为核心的**A\*算法簇与VO算法的模块化代码实现**文件夹，其中存放我们攥写的所有**算法代码文件**，以下为详细介绍。
 
-> 这个主要是为了避免计算上的问题，只要阳阳车进入终点区即视为导航成功
+| 文件名称 | 功能描述 |
+| :--- | :--- |
+| `algo_A_star.py` | **基础A\*全局路径规划算法实现** ，并实现了A\*算法的单独测试类，可以**运行该脚本进行无视动态障碍的纯静态最优寻路** |
+| `algo_Weigted_star_sub.py` | **Weighted A\*算法的全局路径规划算法实现** ，单独启动此脚本时，会得到**大报告中Weighted A\*算法的参数扫描实验图** |
+| `algo_Dynamic_Weighted_A_star.py` | **Dynamic Weighted A\*算法的全局路径规划算法实现** ，单独启动此脚本时，会得到**大报告中Dynamic Weighted A\*算法的参数扫描实验图**。 |
+| `algo_improved_A_star.py`| **用于main函数模块的最终迭代版A\*算法即DWA\*算法实现** |
+| `algo_VO.py` | **速度障碍法VO算法的局部避障算法的实现** ，用于动态障碍处理。 |
 
-## 任务拆解
+#### render
+- 为本工程的**地图渲染层** ，在工程中实现**地图各组件定义和地图总渲染**的地图渲染类的文件。
 
-### 初始化阳阳车
+#### main.py
+- 为本工程的**main核心逻辑业务层** ，在工程中实现**算法规划层的接口调用与地图渲染层的接口调用，并处理地图各组件数据信息，进行算法调用规划，将结果展示在窗户上** 。
 
-阳阳车要用一个封装的很好的类来定义，因为阳阳车的控制是连续的，还要与环境进行交互（强化学习RL部分）
+### readme_picture
+- 存放**readme内插入图片的文件夹** 。
 
-### 初始化地图
 
-地图 障碍 傻逼行人 起始点和终点
+## 搭建依赖环境与运行主程序
+- 本工程的环境配置较为简单，按照如下配置即可的到我们的全效果。
 
-**这里要保证整一个系统是可运行且合理的，因为你的算法未必能够找出一些极端的路径。**
+### 搭建环境
+- [点击此处跳转到Anaconda官网](https://www.anaconda.com/download)下载Anaconda，并***添加Anaconda的环境变量（重要，否则在CMD中无法conda activate进入虚拟环境）*** 。
+- 具体的添加环境变量方式[可见该帖](https://blog.csdn.net/yinjun3215/article/details/123705879)，重点为在Windows的**环境变量(N)...** 中，双击**系统变量Path**，**新建三条环境变量**
+![path1](./readme_picture/image1.png)
+![path2](./readme_picture/image2.png)
+![path3](./readme_picture/image3.png)
+```bash
+D:\python-package\anaconda3  # 具体根据您下载的Anaconda环境路径有关
+D:\python-package\anaconda3\Scripts  # 但anaconda3与Scripts、Library的相对路径关系不变
+D:\python-package\anaconda3\Library\bin
+```
+- 随后，打开CMD，在本文件夹 **（即NJUST-AI-Assignment文件夹下）** 执行如下命令
+```bash
+conda create -n njust_ai python=3.11 # 此后的全选择Yes
+conda activate njust_ai
+pip install pyamaze tk pygame numpy matplotlib # matplotlib是跑实验绘图程序需要的，若只跑main无需
+```
+- 执行完上述步骤后该环境配置完成！
+### 复现工程
+- 打开任意**可调试、运行Python的一款IDE，并打开本工程主文件夹**
+- 在 **\NJUST-AI-Assignment目录下（此步极为重要，文件中含有os库的文件处理，不按照该路径会导致文件路径错误）** ，执行如下代码：
+```bash
+python ./ai-assignment/main.py   
+```
+- 此后按照提示输入所有指标，即可得到弹出窗口的机器人在**含动态障碍物的迷宫内的路径规划与动态避障效果** （从起点到随机终点）
 
-如果完成的不错，可以考虑进一步添加系统的**复杂性和游戏性**
-
-### 导航
-
-导航分为三个模块，每个模块采用独立的规划器解决。最终要考虑整体规划器的合理运行
-
-#### 全局规划
-
-采用算法：
-
-完成任务：能够给出一个合理且尽量短的路径
-
-#### 静态避障
-
-采用算法：强化学习？让模型学会面对静态障碍时如何避障，而不依赖全局规划器
-
-完成任务：能够学会绕开静态障碍物
-
-#### 动态避障
-
-采用算法：人工势场法？
-
-完成任务：能够学会躲开动态障碍物
-
-这里强调的是控制算法，而不是规划决策，因为你完全无法预测傻逼行人怎么走，所以只能根据观测来调整自己的行为。这里没法用强化学习
-
-**这里我觉得核心创新就是强化学习和人工势场法，因为这两个比较新，且略有难度，但是理论上又比较成熟，能够手搓。全局规划器不要做的太好，不然就让强化学习失去了用武之地。关于强化学习到底怎么应用，我到时候好好定义一下。**

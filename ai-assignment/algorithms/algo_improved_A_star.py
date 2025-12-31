@@ -1,0 +1,334 @@
+'''
+Author: Nagisa 2964793117@qq.com
+Date: 2025-12-13 18:37:10
+LastEditors: Nagisa 2964793117@qq.com
+LastEditTime: 2025-12-30 19:51:15
+FilePath: /NJUST-AI-Assignment/ai-assignment/algo_D_star_lite.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koroFileHeader/wiki/%E9%5D%A3%E7%BD%AE
+'''
+'''
+    最终改良版的A*算法，即细化栅格DWA*算法
+'''
+
+import heapq
+from typing import Tuple, List
+
+
+# ===================== 坐标转换工具类 =====================
+class PointTF:
+    @staticmethod
+    def pixel_to_grid(x: float, y: float, mazeconfig) -> Tuple[int, int]:
+        """将像素坐标 (x, y) 转换为 1-based 网格 (row, col)"""
+        col = int(x / mazeconfig.cell_size) + 1
+        row = int(y / mazeconfig.cell_size) + 1
+        return max(1, min(mazeconfig.rows, row)), max(1, min(mazeconfig.cols, col))
+
+    @staticmethod
+    def grid_to_pixel_center(r: int, c: int, mazeconfig) -> Tuple[float, float]:
+        """将 1-based 网格 (row, col) 转换为像素中心点 (x, y)"""
+        x = (c - 0.5) * mazeconfig.cell_size
+        y = (r - 0.5) * mazeconfig.cell_size
+        return x, y
+    
+# ===================== 改良A* 算法的实现 =====================
+class AStarInit:
+    def __init__(self, maze_data,mazeconfig):
+        start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel, mazeconfig)
+        goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel, mazeconfig)
+        self.start_grid = start_grid
+        self.goal_grid = goal_grid
+
+class AStarStaticPlanner:
+    def __init__(self, maze_map, maze_config, weight: float = 1.0):
+        self.maze_map = maze_map.maze_map 
+        self.rows = maze_config.rows
+        self.cols = maze_config.cols
+        self.maze_config = maze_config 
+        self.weight = weight
+        self.last_g_scores = {}
+        self.last_f_scores = {}
+
+        self.path_refiner = PathRefiner(
+                mazeconfig=self.maze_config,  
+                subdivision_factor=3, 
+        )
+        
+    def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> int:
+        """启发函数：曼哈顿距离 (Manhattan Distance)"""
+        r1, c1 = a
+        r2, c2 = b
+        return abs(r1 - r2) + abs(c1 - c2)
+
+    def get_neighbors(self, current: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """获取当前单元格 (r, c) 的可通行邻居"""
+        r, c = current
+        neighbors = []
+        moves = {
+            'N': (-1, 0), 
+            'S': (1, 0), 
+            'E': (0, 1), 
+            'W': (0, -1)
+        }
+        current_cell_data = self.maze_map.get(current)
+        if not current_cell_data:
+            return []
+
+        for direction, (dr, dc) in moves.items():
+            # 1为可通行
+            if current_cell_data.get(direction) == 1:
+                nr, nc = r + dr, c + dc
+                if 1 <= nr <= self.rows and 1 <= nc <= self.cols:
+                    neighbors.append((nr, nc))       
+        return neighbors
+
+    def find_path(self, start_grid: Tuple[int, int], goal_grid: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+         DWA* 算法寻找路径
+        """
+        open_set = []
+        h_initial = self.heuristic(start_grid, goal_grid)
+        heapq.heappush(open_set, (0, start_grid))
+
+        g_score = {}
+        # 初始化所有单元格的 g 值为无穷大
+        for r in range(1, self.rows + 1):
+            for c in range(1, self.cols + 1):
+                g_score[(r, c)] = float('inf')
+        
+        g_score[start_grid] = 0
+        came_from = {}
+        epsilon = self.weight - 1.0
+        while open_set:
+            current_f, current_node = heapq.heappop(open_set)
+
+            if current_node == goal_grid:
+                path = []
+                temp_node = current_node
+                while temp_node != start_grid:
+                    path.append(temp_node)
+                    temp_node = came_from[temp_node]
+                path.append(start_grid)
+                return path[::-1] 
+
+            for neighbor in self.get_neighbors(current_node):
+                tentative_g_score = g_score[current_node] + 1 
+                if tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current_node
+                    g_score[neighbor] = tentative_g_score
+                    h_neighbor = self.heuristic(neighbor, goal_grid)
+                    # 计算动态权重
+                    w_neighbor = 1.0 + epsilon * (h_neighbor / h_initial) if h_initial > 0 else 1.0
+                    f_score = tentative_g_score + w_neighbor * h_neighbor
+
+                    self.last_g_scores[neighbor] = tentative_g_score
+                    self.last_f_scores[neighbor] = f_score
+                    heapq.heappush(open_set, (f_score, neighbor))
+        return [] 
+
+    def find_and_refine_path(self, start_grid: Tuple[int, int], goal_grid: Tuple[int, int]) -> List[List[Tuple[float, float]]]:
+        """
+        首先使用 DWA* 寻找粗粒度路径，然后将其细化为元组列表的列表。
+        """
+        coarse_path = self.find_path(start_grid, goal_grid)
+        
+        if not coarse_path:
+            return []
+
+        fine_path_segments = self.path_refiner.subdivide_path(coarse_path)
+        
+        return fine_path_segments 
+        
+# ===================== 路径细化工具类  =====================
+class PathRefiner:
+    """
+    负责将网格路径 (r, c) 转换为细粒度的像素路径 (x, y)
+    并将路径中的每个粗网格等分为 N*N 个子网格的中心点。
+    """
+    def __init__(self, mazeconfig, subdivision_factor: int = 3):
+        self.subdivision_factor = subdivision_factor
+        self.original_cell_size = mazeconfig.cell_size
+        self.sub_cell_size = self.original_cell_size / self.subdivision_factor
+
+    def subdivide_path(self, coarse_path: List[Tuple[int, int]]) -> List[List[Tuple[float, float]]]:
+        """
+        将粗网格路径 (r, c) 转换为细粒度的像素路径 (x, y) 段列表 (元组列表的列表)
+        :param coarse_path: A* 规划出的网格路径点列表 (r, c)。
+        :return: 路径段列表: List[List[Tuple[float, float]]]
+        """
+        if not coarse_path:
+            return []
+
+        fine_segments: List[List[Tuple[float, float]]] = []
+
+        for r_grid, c_grid in coarse_path:
+            x_start = (c_grid - 1) * self.original_cell_size
+            y_start = (r_grid - 1) * self.original_cell_size
+            segment: List[Tuple[float, float]] = []
+
+            for r_sub in range(self.subdivision_factor):
+                for c_sub in range(self.subdivision_factor):
+                    dx = (c_sub + 0.5) * self.sub_cell_size
+                    dy = (r_sub + 0.5) * self.sub_cell_size
+                    
+                    x_fine = x_start + dx
+                    y_fine = y_start + dy
+                    
+                    segment.append((x_fine, y_fine))
+            
+            fine_segments.append(segment)
+        return fine_segments 
+
+
+# ===================== A* 测试类 =====================
+# class AstarTest:
+#     """
+#     封装了 A* 路径规划、移动逻辑和路径渲染的类。
+#     机器人的移动严格按照 A* 粗粒度网格中心点进行。
+#     """
+#     def __init__(self, robot, maze_data, maze_map, maze_config, scene_renderer):
+#         self.robot = robot
+#         self.maze_data = maze_data
+#         self.scene_renderer = scene_renderer
+#         self.maze_config = maze_config
+#         self.planner = AStarStaticPlanner(maze_map, maze_config)
+#         self.start_grid = PointTF.pixel_to_grid(*maze_data.start_pixel)
+#         self.goal_grid = PointTF.pixel_to_grid(*maze_data.goal_pixel)
+        
+#         self.path: List[Tuple[int, int]] = []
+#         self.fine_path_segments: List[List[Tuple[float, float]]] = [] 
+#         self.is_planning_complete = False
+
+#     def start_planning_and_movement(self):
+#         """执行规划、生成细化数据并准备开始移动"""
+#         print(f"AstarTest: Planning path from {self.start_grid} to {self.goal_grid}...")
+        
+#         current_grid = PointTF.pixel_to_grid(self.robot.x, self.robot.y)
+        
+#         self.fine_path_segments = self.planner.find_and_refine_path(current_grid, self.goal_grid)
+
+
+#         if self.fine_path_segments:
+#                     print("\n--- 细化后的路径数据 (fine_path_segments) ---")
+#                     print(f"网格1的细分点 (共 {len(self.fine_path_segments[0])} 个): {self.fine_path_segments[0]}")
+#                     if len(self.fine_path_segments) > 1:
+#                         print(f"网格2的细分点 (共 {len(self.fine_path_segments[1])} 个): {self.fine_path_segments[1]}")
+#                     if len(self.fine_path_segments) > 2:
+#                         print("...")
+#                     print(f"总共有 {len(self.fine_path_segments)} 个粗粒度网格的细分数据。")
+#                     print("---------------------------------------------------\n")
+        
+#         self.path = self.planner.find_path(current_grid, self.goal_grid)
+        
+#         if self.path:
+#             self.path.pop(0) # 移除当前位置 (保持原始逻辑)
+#             self.is_planning_complete = True
+#             print(f"AstarTest: Path found with {len(self.path)} coarse steps. Fine segments generated ({sum(len(s) for s in self.fine_path_segments)} points).")
+#         else:
+#             self.is_planning_complete = False
+#             print("AstarTest: Error: Could not find a static path.")
+
+#     def update(self):
+#         if not self.is_planning_complete or not self.path:
+#             self.robot.speed = 0
+#             self.robot.goal = True
+#             self.robot.update()
+#             return
+
+#         next_grid = self.path[0]
+#         target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
+#         dist_to_target = math.hypot(self.robot.x - target_x, self.robot.y - target_y)
+        
+#         if dist_to_target < self.robot.radius / 2: 
+#             self.path.pop(0)
+#             if not self.path:
+#                 self.robot.goal = True
+#                 self.robot.speed = 0
+#                 return
+#             next_grid = self.path[0]
+#             target_x, target_y = PointTF.grid_to_pixel_center(*next_grid)
+            
+#         dx = target_x - self.robot.x
+#         dy = target_y - self.robot.y
+#         norm = math.hypot(dx, dy)
+        
+#         if norm > 0:
+#             self.robot.direction = (dx / norm, dy / norm)
+#         else:
+#             self.robot.direction = (0, 0)
+            
+#         self.robot.update()
+#         # -----------------------------------------------------------------
+
+#     def draw_path(self):
+#         """绘制路径，同时描绘细分后的所有点"""
+        
+#
+#         if self.path:
+#             path_pixels = [(self.robot.x, self.robot.y)] + [PointTF.grid_to_pixel_center(*grid) for grid in self.path]
+
+#             for i in range(len(path_pixels) - 1):
+#                 p1 = path_pixels[i]
+#                 p2 = path_pixels[i+1]
+#                 pygame.draw.line(self.scene_renderer.screen, (255, 165, 0), p1, p2, 5)
+
+#         if self.fine_path_segments:
+#             # 将 segments 展平为单个列表
+#             all_fine_points = [point for segment in self.fine_path_segments for point in segment]
+            
+#             for x, y in all_fine_points:
+#                  # 显示细化后的点
+#                  pygame.draw.circle(self.scene_renderer.screen, (0, 255, 255), (int(x), int(y)), 2)
+                 
+# #============================== 结束 ===================================#
+
+
+# # === 配置动态障碍 ===
+# # 低速障碍物个数，速度范围，高速障碍物个数，速度范围, 半径大小
+# dynamic_obstacles = render_map.generate_dynamic_obstacles(
+#     num_slow=20, num_fast=20, slow_speed_range=(0.5,1),fast_speed_range=(1.5,3),
+#     map_width=mazeconfig.map_size[0], map_height=mazeconfig.map_size[1],radius=10,
+#     maze_walls=maze_data.walls
+# )
+
+# Nagisa_robot = render_map.N7carRobot(
+#     x=maze_data.start_pixel[0],
+#     y=maze_data.start_pixel[1],
+#     speed=2,
+#     direction=(1,0),
+#     radius=15
+# )
+
+# scene_renderer = render_map.SceneRenderer(maze_data, mazeconfig, dynamic_obstacles, Nagisa_robot)
+
+
+# # -------------------- A* 测试对象实例化 --------------------
+# astar_test_module = AstarTest(Nagisa_robot, maze_data, maze, mazeconfig, scene_renderer)
+# astar_test_module.start_planning_and_movement()
+# # ------------------------------------------------------------
+
+
+# # -------------------- 主循环和渲染 --------------------
+# clock = pygame.time.Clock()
+# running = True
+# pygame.font.init()
+
+# while running:
+#     for event in pygame.event.get():
+#         if event.type == pygame.QUIT:
+#             running = False
+    
+#     for obs in dynamic_obstacles:
+#         obs.update(maze_data.walls)
+
+#     # Nagisa_robot.update() 已经在 astar_test_module.update() 中调用
+
+#     # -----------------A* 测试，地图绘制和机器人移动------------------
+#     astar_test_module.update()
+#     scene_renderer.draw()
+#     astar_test_module.draw_path()
+
+
+#     pygame.display.flip()
+#     clock.tick(30) 
+
+# scene_renderer.quit()
