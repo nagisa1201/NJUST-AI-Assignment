@@ -40,11 +40,11 @@
 - 存放**readme内插入图片的文件夹** 。
 
 
-## 搭建环境与复现工程效果
+## 搭建依赖环境与运行主程序
 - 本工程的环境配置较为简单，按照如下配置即可的到我们的全效果。
 
 ### 搭建环境
-- 点击本文件夹中的Anaconda3-2025.06-0-Windows-x86_64.exe文件下载Anaconda，并***添加Anaconda的环境变量（重要，否则在CMD中无法conda activate进入虚拟环境）*** 。
+- [点击此处跳转到Anaconda官网](https://www.anaconda.com/download)下载Anaconda，并***添加Anaconda的环境变量（重要，否则在CMD中无法conda activate进入虚拟环境）*** 。
 - 具体的添加环境变量方式[可见该帖](https://blog.csdn.net/yinjun3215/article/details/123705879)，重点为在Windows的**环境变量(N)...** 中，双击**系统变量Path**，**新建三条环境变量**
 ![path1](./readme_picture/image1.png)
 ![path2](./readme_picture/image2.png)
