@@ -58,7 +58,7 @@ D:\python-package\anaconda3\Library\bin
 ```bash
 conda create -n njust_ai python=3.11 # 此后的全选择Yes
 conda activate njust_ai
-pip install pyamaze tk pygame numpy
+pip install pyamaze tk pygame numpy matplotlib # matplotlib是跑实验绘图程序需要的，若只跑main无需
 ```
 - 执行完上述步骤后该环境配置完成！
 ### 复现工程

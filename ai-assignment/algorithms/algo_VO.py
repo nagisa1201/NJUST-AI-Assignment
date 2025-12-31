@@ -31,12 +31,13 @@ class VO_Avoidance:
         rel_v = (v[0] - VO['apex'][0], v[1] - VO['apex'][1])
         left = (VO['left_leg'][0] - VO['apex'][0], VO['left_leg'][1] - VO['apex'][1])
         right = (VO['right_leg'][0] - VO['apex'][0], VO['right_leg'][1] - VO['apex'][1])
+
         # 叉积判断 rel_v 是否在 left 和 right 之间
         cross1 = left[0]*rel_v[1] - left[1]*rel_v[0]
         cross2 = rel_v[0]*right[1] - rel_v[1]*right[0]
         return cross1 >= 0 and cross2 >= 0
 
-    def construct_obstacle_VO(self, robot_state, obs_state, robot_radius=15, obs_radius=10):
+    def construct_obstacle_VO(self, robot_state, obs_state, robot_radius, obs_radius):
         """
         构造动态障碍物的VO
         """
@@ -78,7 +79,7 @@ class VO_Avoidance:
         result = []
         # 解决墙壁遮蔽物体的问题
         def segments_intersect(A, B, C, D):
-            """判断线段AB和CD是否相交"""
+
             def cross(p1, p2, p3):
                 return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0])
             
@@ -110,9 +111,11 @@ class VO_Avoidance:
         速度空间可视化
         """
         cx, cy = int(robot_state['x']), int(robot_state['y'])
+
         # 从0.2到v_max采样速度
         for r in np.linspace(0.2, self.v_max, num_radii):
             # 从0到2pi采样角度
+
             for angle in np.linspace(0, 2 * np.pi, num_angles, endpoint=False):
                 vx = math.cos(angle) * r
                 vy = math.sin(angle) * r
@@ -129,6 +132,7 @@ class VO_Avoidance:
                     base_color = (0, 255, 0)
 
                 color = (base_color[0], base_color[1], base_color[2], 50)
+
                 # 将速度放大显示
                 px = int(cx + vx * 8)
                 py = int(cy + vy * 8)
@@ -142,16 +146,17 @@ class VO_Avoidance:
         considered_obs = self.filter_obstacles_in_vision(obstacles, robot_state)
         
         for obs in considered_obs:
-            vo = self.construct_obstacle_VO(robot_state, obs)
+            vo = self.construct_obstacle_VO(robot_state, obs, self.robot.radius, obs.radius)
             VOs.append(vo)
         
         print(f"N7car坐标: ({robot_state['x']:.1f}, {robot_state['y']:.1f})")
         collision_flag = False
+
         if considered_obs:
             print("考虑进VO的动态障碍物坐标:")
             for obs in considered_obs:
                 min_dist = math.hypot(obs.x - robot_state['x'], obs.y - robot_state['y'])
-                print(f"障碍物{getattr(obs, 'oid', '?')}: ({obs.x:.1f}, {obs.y:.1f})，此时距离{min_dist:.1f}")
+                print(f"障碍物{obs.oid}: ({obs.x:.1f}, {obs.y:.1f})，此时距离{min_dist:.1f}")
                 if min_dist < 18 : # 这里18是超参数，就是两个半径相加
                     print("!!! 警告: 障碍物过近，可能发生碰撞 !!!")
                     collision_flag = True
@@ -206,6 +211,7 @@ class VO_Avoidance:
                     norm_dist_loss = min(dist_loss / MAX_DISTANCE, 1.0)
                     
                     # 2. 方向损失（归一化到[0,1]）
+                    norm_dir_loss = 0
                     norm_v = np.linalg.norm(v)
                     norm_vd = np.linalg.norm(v_desired)
                     if norm_v > 0 and norm_vd > 0:
@@ -213,22 +219,15 @@ class VO_Avoidance:
                         cos_dir = np.clip(cos_dir, -1, 1)
                         dir_angle = np.arccos(cos_dir)
                         norm_dir_loss = dir_angle / MAX_ANGLE  # 归一化
-                    else:
-                        norm_dir_loss = 0.5  # 零向量，取中间值
-                    
+
                     # 3. 惯性损失
+                    norm_inertia_loss = 0
                     norm_last = np.linalg.norm(self.last_velocity)
                     if norm_v > 0 and norm_last > 0:
-                        # 计算理想方向：在目标方向和惯性方向间权衡
-                        v_target_dir = v_desired / norm_vd
-                        v_last_dir = self.last_velocity / norm_last
-                        
                         # 计算转向角度
                         turn_angle = self.angle_between(v, self.last_velocity)
                         norm_inertia_loss = turn_angle / MAX_ANGLE  # 归一化
-                        
-                    else:
-                        norm_inertia_loss = 0.0  # 没有历史速度，不惩罚
+
                     
                     # 综合损失
                     total_loss = (
@@ -239,9 +238,9 @@ class VO_Avoidance:
                     loss.append(total_loss)
         
         if not candidates:
-            # 没有安全速度，紧急处理
+            # 没有安全速度
             if danger_away_dir is not None:
-                # 尝试慢速远离
+                # 慢速远离
                 for speed_factor in [0.8, 0.5, 0.3, 0.1]:
                     v_emergency = danger_away_dir * (self.v_max * speed_factor)
                     safe = True
@@ -264,7 +263,7 @@ class VO_Avoidance:
         
         # 速度限制
         v_norm = np.linalg.norm(v_best)
-        if v_norm > self.v_max + 0:
+        if v_norm > self.v_max:
             v_best = v_best / v_norm * self.v_max
         
         self.last_velocity = v_best
@@ -321,19 +320,20 @@ class VO_Avoidance:
                 else:
                     danger_away_dir = np.array([1.0, 0.0])  # 默认方向
         
-        # 4. 构造VO
+    
         VOs = self.build_VOs(self.obstacles, robot_state)
         
-        # 5. 选择速度
         return self.select_velocity_outside_VOs(v_desired, VOs, danger_away_dir)
     
     def update(self):
         robot_state = self.robot.get_N7car_state()
         current_position = (robot_state['x'], robot_state['y'])
         # 遍历当前子列表所有点，筛选VO外的安全点，选与下一个子列表中心点欧氏距离最小的点作为目标点
+        
         # 没目标点了就直接返回
         if not self.path_goal or self.path_idx >= len(self.path_goal):
             return
+        
         current_segment = self.path_goal[self.path_idx]
         # 计算当前VO遮蔽区
         robot_state = self.robot.get_N7car_state()
@@ -342,11 +342,24 @@ class VO_Avoidance:
         def get_center_point(segment):
             if not segment:
                 return None
+            
+            # 计算中心点
             arr = np.array(segment)
             center = np.mean(arr, axis=0)
-            # 找到距离均值最近的点
-            return min(segment, key=lambda p: np.linalg.norm(np.array(p) - center))
-        
+            
+            # 找最近点
+            nearest_point = None
+            nearest_distance = float('inf')
+            
+            for point in segment:
+                # 计算点到中心的距离
+                distance = np.linalg.norm(np.array(point) - center)
+                if distance < nearest_distance:
+                    nearest_distance = distance
+                    nearest_point = point
+            
+            return nearest_point
+                
         if self.path_idx + 1 < len(self.path_goal):
             next_segment = self.path_goal[self.path_idx + 1]
             ref_point = get_center_point(next_segment)
@@ -364,6 +377,7 @@ class VO_Avoidance:
         # 如果没有安全点，降级为所有点都可选
         if not safe_points:
             safe_points = current_segment
+
         # 选择与参考点欧氏距离最小的安全点
         closest_point = safe_points[0]  # 初始化为第一个点
         closest_distance = np.linalg.norm(np.array(safe_points[0]) - np.array(ref_point))
